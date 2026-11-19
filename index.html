@@ -405,7 +405,7 @@
     </div>
 
     <div class="user-bar" id="userBar"></div>
-    <div class="sync-banner" id="globalSyncStatus">雲端狀態：尚未設定 Google 試算表網址（仍可正常使用本機紀錄與 Excel 匯出）</div>
+    <div class="sync-banner" id="globalSyncStatus">雲端狀態：已鎖定內建 Google 試算表同步連線</div>
   </header>
 
   <div class="tabs">
@@ -512,14 +512,10 @@
 
     <hr style="margin:22px 0; border:none; border-top:1.5px solid var(--border);" />
 
-    <h2>☁️ Google 試算表雙向同步設定</h2>
+    <h2>☁️ Google 試算表雙向同步</h2>
     <p style="font-size:16px; color:var(--muted); margin-top:0;">
-      「從雲端抓回」只會下載<strong>目前選中且同名</strong>的使用者（<strong id="pullTargetName">爸爸</strong>）的雲端資料，不會影響其他家人。
+      雲端連線網址已固定內建於程式中（防止誤改）。「從雲端抓回」只會下載<strong>目前選中且同名</strong>的使用者（<strong id="pullTargetName">爸爸</strong>）的雲端資料，不會影響其他家人。
     </p>
-    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-      <input type="url" id="webhookUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:240px;" />
-      <button type="button" class="btn btn-primary" onclick="saveWebhookUrl()">儲存網址</button>
-    </div>
     <div style="display:flex; flex-wrap:wrap; gap:8px;">
       <button type="button" class="btn btn-outline" onclick="pullUserFromCloud()">⬇️ 從雲端抓回「<span id="pullBtnUserName">爸爸</span>」資料</button>
       <button type="button" class="btn btn-outline" onclick="testSyncNow()">⬆️ 推送今天資料到雲端</button>
@@ -528,7 +524,7 @@
   </section>
 
   <footer class="version-footer">
-    <button type="button" class="version-link" onclick="openChangelogModal()">版本：rev0.3 · 點擊查看更新紀錄</button>
+    <button type="button" class="version-link" onclick="openChangelogModal()">版本：rev0.4 · 點擊查看更新紀錄</button>
   </footer>
 </div>
 
@@ -544,20 +540,32 @@
 </div>
 
 <script>
-  //const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzf-9L9GeD8V_C4B-T8WzObkAE_6cyP8n2Avoo3xGa6uuw9pt_yCvha75398v96wF66/exec';
-  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbz-lDbXzMfu0Fk7hcGMkxathhvBxaSF8eWfR25pg5_FJrTasHIqadTRWH0POLQ87Qfd/exec';
+  // 固定使用內建的 Google Apps Script 部署網址，不讀取亦不覆蓋瀏覽器舊快取
+  const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzf-9L9GeD8V_C4B-T8WzObkAE_6cyP8n2Avoo3xGa6uuw9pt_yCvha75398v96wF66/exec';
 
   const STORAGE_KEY = 'dad_health_tracker_v2';
-  const WEBHOOK_KEY = 'dad_health_sheets_webhook_v1';
+  const LEGACY_WEBHOOK_KEY = 'dad_health_sheets_webhook_v1';
+
+  // 自動清除舊版留在瀏覽器中的網址快取，確保永遠使用上方固定的 WEBHOOK_URL
+  try {
+    localStorage.removeItem(LEGACY_WEBHOOK_KEY);
+  } catch {}
 
   const CHANGELOG = [
+    {
+      ver: 'rev0.4',
+      date: '2026-11-19',
+      items: [
+        '將 Google 試算表同步網址永久固定於程式中，移除手動修改欄位並自動清除舊快取，避免使用者誤改導致同步中斷'
+      ]
+    },
     {
       ver: 'rev0.3',
       date: '2026-11-19',
       items: [
         '頁尾版本號支援點擊彈窗，可隨時檢視各版本更新細節',
         '歷史與匯出分頁新增「依月份 / 全部」篩選檢視與對應匯出',
-        '新增「清除本機歷史紀錄」按鈕（含二次確認，不影響雲端與同步網址）'
+        '新增「清除本機歷史紀錄」按鈕（含二次確認，不影響雲端資料）'
       ]
     },
     {
@@ -579,18 +587,6 @@
       ]
     }
   ];
-
-  function isValidWebhook(url) {
-    return typeof url === 'string' && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(url.trim());
-  }
-
-  function resolveInitialWebhook() {
-    try {
-      const saved = localStorage.getItem(WEBHOOK_KEY);
-      if (saved && saved.trim()) return saved.trim();
-    } catch {}
-    return isValidWebhook(DEFAULT_WEBHOOK_URL) ? DEFAULT_WEBHOOK_URL.trim() : '';
-  }
 
   function getTodayStr() {
     const d = new Date();
@@ -643,7 +639,6 @@
   let state = loadState();
   let currentDate = getTodayStr();
   let currentPeriod = detectPeriodByTime();
-  let webhookUrl = resolveInitialWebhook();
   let selectedMonth = 'all';
 
   function saveStateLocal() {
@@ -899,7 +894,7 @@
   function clearLocalHistory() {
     const user = getActiveUser();
     const ok = confirm(`確定要清除瀏覽器快取中「${user.name}」的所有歷史紀錄嗎？
-（雲端 Google 試算表資料與同步網址設定不會被刪除）`);
+（雲端 Google 試算表資料不會被刪除）`);
     if (!ok) return;
 
     state.records[user.id] = {};
@@ -1011,20 +1006,7 @@
     document.getElementById('syncDetailLog').textContent = msg;
   }
 
-  function saveWebhookUrl() {
-    webhookUrl = document.getElementById('webhookUrlInput').value.trim();
-    try {
-      localStorage.setItem(WEBHOOK_KEY, webhookUrl);
-    } catch {}
-    if (!webhookUrl) {
-      updateSyncStatusText('雲端狀態：已清除 Google 試算表網址');
-      return;
-    }
-    updateSyncStatusText('雲端狀態：已儲存試算表同步網址，儲存紀錄時將自動同步');
-  }
-
   async function syncToGoogleSheets(userId, dateStr, successMsg) {
-    if (!webhookUrl) return;
     const user = state.users.find(u => u.id === userId) || state.users[0];
     const day = ensureDayRecord(user.id, dateStr);
     const payload = {
@@ -1037,7 +1019,7 @@
 
     updateSyncStatusText('雲端狀態：正在同步至 Google 試算表...');
     try {
-      await fetch(webhookUrl, {
+      await fetch(WEBHOOK_URL, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1051,17 +1033,13 @@
   }
 
   async function pullUserFromCloud() {
-    if (!webhookUrl) {
-      alert('請先輸入並儲存 Google Apps Script 網址');
-      return;
-    }
     const user = getActiveUser();
     const targetName = user.name.trim();
     if (!targetName) return;
 
     updateSyncStatusText(`雲端狀態：正在從試算表抓回「${targetName}」的紀錄...`);
     try {
-      const endpoint = `${webhookUrl}?action=get&user=${encodeURIComponent(targetName)}&_t=${Date.now()}`;
+      const endpoint = `${WEBHOOK_URL}?action=get&user=${encodeURIComponent(targetName)}&_t=${Date.now()}`;
       const res = await fetch(endpoint);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -1098,10 +1076,6 @@
   }
 
   function testSyncNow() {
-    if (!webhookUrl) {
-      alert('請先輸入並儲存 Google Apps Script 網址');
-      return;
-    }
     const user = getActiveUser();
     syncToGoogleSheets(user.id, currentDate, `已推送 ${user.name}（${currentDate}）資料到雲端`);
   }
@@ -1124,10 +1098,7 @@
     renderAll();
   };
 
-  document.getElementById('webhookUrlInput').value = webhookUrl;
-  if (webhookUrl) {
-    updateSyncStatusText('雲端狀態：已內建同步連線，支援推送與依同名使用者抓回');
-  }
+  updateSyncStatusText('雲端狀態：已鎖定內建同步連線，支援推送與依同名使用者抓回');
 
   function renderAll() {
     renderUsers();
