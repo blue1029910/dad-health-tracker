@@ -406,7 +406,7 @@
 
     <h2>☁️ Google 試算表自動同步設定</h2>
     <p style="font-size:16px; color:var(--muted); margin-top:0;">
-      貼上 Google Apps Script 部署後的網址（以 <code>/exec</code> 結尾）。設定後，每次按儲存血壓或加喝水，都會自動把當日資料同步到您的 Google 試算表。
+      已支援內建預設網址（開箱免設定）；若需更換或暫停同步，也可在此修改並按「儲存網址」。
     </p>
     <div style="display:flex; flex-wrap:wrap; gap:8px;">
       <input type="url" id="webhookUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:240px;" />
@@ -418,8 +418,20 @@
 </div>
 
 <script>
+  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbyXAPO-vv-YOrA-p9xt0hdiWWOT02Bx3F9pzt87_GHr3C0ZtgZmcrltU4qK44XZRzBY/exec';
+
   const STORAGE_KEY = 'dad_health_tracker_v2';
   const WEBHOOK_KEY = 'dad_health_sheets_webhook_v1';
+
+  function isValidWebhook(url) {
+    return typeof url === 'string' && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(url.trim());
+  }
+
+  function resolveInitialWebhook() {
+    const saved = localStorage.getItem(WEBHOOK_KEY);
+    if (saved !== null) return saved.trim();
+    return isValidWebhook(DEFAULT_WEBHOOK_URL) ? DEFAULT_WEBHOOK_URL.trim() : '';
+  }
 
   function getTodayStr() {
     const d = new Date();
@@ -452,7 +464,7 @@
       users: [{ id: 'dad', name: '爸爸' }],
       activeUserId: 'dad',
       waterGoal: 2000,
-      records: {} // { [userId]: { [dateStr]: dayObj } }
+      records: {}
     };
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -472,7 +484,7 @@
   let state = loadState();
   let currentDate = getTodayStr();
   let currentPeriod = detectPeriodByTime();
-  let webhookUrl = localStorage.getItem(WEBHOOK_KEY) || '';
+  let webhookUrl = resolveInitialWebhook();
 
   function saveStateLocal() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -825,7 +837,7 @@
 
   document.getElementById('webhookUrlInput').value = webhookUrl;
   if (webhookUrl) {
-    updateSyncStatusText('雲端狀態：已連線設定，儲存紀錄時將自動同步至 Google 試算表');
+    updateSyncStatusText('雲端狀態：已內建同步連線，儲存紀錄時將自動同步至 Google 試算表');
   }
 
   function renderAll() {
