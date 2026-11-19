@@ -1,96 +1,57 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>每日健康紀錄（含雙向試算表同步）</title>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <style>
-    :root {
-      --bg: #f6f8f4;
-      --card: #ffffff;
-      --text: #1c2822;
-      --muted: #586960;
-      --primary: #1f6f54;
-      --primary-hover: #175640;
-      --primary-light: #e7f3ee;
-      --water: #1b6ca8;
-      --water-light: #e6f2fb;
-      --warn: #9a5b00;
-      --warn-bg: #fff5e2;
-      --danger: #a62626;
-      --danger-bg: #fdeaea;
-      --ok: #1b6b3a;
-      --ok-bg: #e7f6ec;
-      --border: #d6dfd9;
-      --radius: 18px;
-    }
 
-    * { box-sizing: border-box; }
+<h2>☁️ Google 試算表自動同步設定</h2>
+<p style="font-size:16px; color:var(--muted); margin-top:0;">
+      貼上 Google Apps Script 部署後的網址（以 <code>/exec</code> 結尾）。設定後，每次按儲存血壓或加喝水，都會自動把當日資料同步到您的 Google 試算表。
+      已支援內建預設網址（開箱免設定）；若需更換或暫停同步，也可在此修改並按「儲存網址」。
+</p>
+<div style="display:flex; flex-wrap:wrap; gap:8px;">
+<input type="url" id="webhookUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:240px;" />
+@@ -418,9 +418,21 @@ <h2>☁️ Google 試算表自動同步設定</h2>
+</div>
 
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      font-size: 19px;
-      line-height: 1.5;
-      padding-bottom: 48px;
-    }
+<script>
+  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbyXAPO-vv-YOrA-p9xt0hdiWWOT02Bx3F9pzt87_GHr3C0ZtgZmcrltU4qK44XZRzBY/exec';
 
-    .container {
-      max-width: 780px;
-      margin: 0 auto;
-      padding: 16px;
-    }
+const STORAGE_KEY = 'dad_health_tracker_v2';
+const WEBHOOK_KEY = 'dad_health_sheets_webhook_v1';
 
-    header {
-      background: var(--card);
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      padding: 18px 20px;
-      margin-bottom: 14px;
-    }
+  function isValidWebhook(url) {
+    return typeof url === 'string' && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(url.trim());
+  }
 
-    .top-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
+  function resolveInitialWebhook() {
+    const saved = localStorage.getItem(WEBHOOK_KEY);
+    if (saved !== null) return saved.trim();
+    return isValidWebhook(DEFAULT_WEBHOOK_URL) ? DEFAULT_WEBHOOK_URL.trim() : '';
+  }
 
-    h1 {
-      margin: 0;
-      font-size: 26px;
-      color: var(--primary);
-    }
+function getTodayStr() {
+const d = new Date();
+const y = d.getFullYear();
+@@ -452,7 +464,7 @@ <h2>☁️ Google 試算表自動同步設定</h2>
+users: [{ id: 'dad', name: '爸爸' }],
+activeUserId: 'dad',
+waterGoal: 2000,
+      records: {} // { [userId]: { [dateStr]: dayObj } }
+      records: {}
+};
+try {
+const raw = localStorage.getItem(STORAGE_KEY);
+@@ -472,7 +484,7 @@ <h2>☁️ Google 試算表自動同步設定</h2>
+let state = loadState();
+let currentDate = getTodayStr();
+let currentPeriod = detectPeriodByTime();
+  let webhookUrl = localStorage.getItem(WEBHOOK_KEY) || '';
+  let webhookUrl = resolveInitialWebhook();
 
-    .date-box {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+function saveStateLocal() {
+localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+@@ -825,7 +837,7 @@ <h2>☁️ Google 試算表自動同步設定</h2>
 
-    input[type="date"], input[type="number"], input[type="text"], input[type="url"], select {
-      font-size: 19px;
-      padding: 10px 14px;
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      background: #fff;
-      color: var(--text);
-    }
+document.getElementById('webhookUrlInput').value = webhookUrl;
+if (webhookUrl) {
+    updateSyncStatusText('雲端狀態：已連線設定，儲存紀錄時將自動同步至 Google 試算表');
+    updateSyncStatusText('雲端狀態：已內建同步連線，儲存紀錄時將自動同步至 Google 試算表');
+}
 
-    input[type="number"] {
-      width: 100%;
-      text-align: center;
-      font-size: 24px;
-      font-weight: 700;
-      padding: 12px 8px;
-    }
-
-    .user-bar {
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1.5px dashed var(--border
+function renderAll() {
