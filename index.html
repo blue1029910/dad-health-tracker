@@ -3,8 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>每日健康紀錄（含雙向試算表同步rev.2）</title>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <title>每日健康紀錄（含雙向試算表同步）</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="loadFallbackXlsx()"></script>
+  <script>
+    function loadFallbackXlsx() {
+      if (window.XLSX) return;
+      const s = document.createElement('script');
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+      document.head.appendChild(s);
+    }
+  </script>
   <style>
     :root {
       --bg: #f6f8f4;
@@ -290,6 +298,14 @@
     .table-wrap { overflow-x: auto; }
     .hidden { display: none; }
 
+    .version-footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 24px;
+      opacity: 0.85;
+    }
+
     @media (max-width: 600px) {
       .bp-grid, .summary-3 { grid-template-columns: 1fr; }
       h1 { font-size: 22px; }
@@ -418,10 +434,12 @@
     </div>
     <div id="syncDetailLog" class="sync-banner"></div>
   </section>
+
+  <footer class="version-footer">版本：rev0.2</footer>
 </div>
 
 <script>
-  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbz-lDbXzMfu0Fk7hcGMkxathhvBxaSF8eWfR25pg5_FJrTasHIqadTRWH0POLQ87Qfd/exec';
+  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzf-9L9GeD8V_C4B-T8WzObkAE_6cyP8n2Avoo3xGa6uuw9pt_yCvha75398v96wF66/exec';
 
   const STORAGE_KEY = 'dad_health_tracker_v2';
   const WEBHOOK_KEY = 'dad_health_sheets_webhook_v1';
@@ -431,8 +449,10 @@
   }
 
   function resolveInitialWebhook() {
-    const saved = localStorage.getItem(WEBHOOK_KEY);
-    if (saved !== null) return saved.trim();
+    try {
+      const saved = localStorage.getItem(WEBHOOK_KEY);
+      if (saved && saved.trim()) return saved.trim();
+    } catch {}
     return isValidWebhook(DEFAULT_WEBHOOK_URL) ? DEFAULT_WEBHOOK_URL.trim() : '';
   }
 
@@ -490,7 +510,9 @@
   let webhookUrl = resolveInitialWebhook();
 
   function saveStateLocal() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {}
   }
 
   function getActiveUser() {
@@ -741,6 +763,10 @@
   }
 
   function exportSingleExcel() {
+    if (!window.XLSX) {
+      alert('Excel 匯出元件尚未載入完成，請檢查網路連線後再試一次');
+      return;
+    }
     const user = getActiveUser();
     const rows = buildUserRows(user);
     if (!rows.length) {
@@ -754,6 +780,10 @@
   }
 
   function exportAllUsersExcel() {
+    if (!window.XLSX) {
+      alert('Excel 匯出元件尚未載入完成，請檢查網路連線後再試一次');
+      return;
+    }
     const wb = XLSX.utils.book_new();
     let hasAny = false;
     state.users.forEach(u => {
@@ -778,7 +808,9 @@
 
   function saveWebhookUrl() {
     webhookUrl = document.getElementById('webhookUrlInput').value.trim();
-    localStorage.setItem(WEBHOOK_KEY, webhookUrl);
+    try {
+      localStorage.setItem(WEBHOOK_KEY, webhookUrl);
+    } catch {}
     if (!webhookUrl) {
       updateSyncStatusText('雲端狀態：已清除 Google 試算表網址');
       return;
