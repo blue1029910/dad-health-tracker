@@ -141,6 +141,8 @@
     .btn-primary:hover { background: var(--primary-hover); }
     .btn-water { background: var(--water); color: #fff; }
     .btn-outline { background: #fff; color: var(--text); border: 2px solid var(--border); }
+    .btn-danger { background: var(--danger-bg); color: var(--danger); border: 1.5px solid #e6b4b4; }
+    .btn-danger:hover { background: #fbd8d8; }
     .btn-sm { padding: 8px 13px; font-size: 15px; border-radius: 10px; }
 
     .tabs {
@@ -278,6 +280,31 @@
       color: var(--muted);
     }
 
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: #f9fbf9;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+
+    .filter-left {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-bar select {
+      font-size: 16px;
+      padding: 7px 12px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -296,14 +323,68 @@
     }
 
     .table-wrap { overflow-x: auto; }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
 
     .version-footer {
       text-align: center;
-      font-size: 12px;
-      color: var(--muted);
       margin-top: 24px;
-      opacity: 0.85;
+    }
+
+    .version-link {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 6px 12px;
+      border-radius: 8px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .version-link:hover {
+      color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 32, 26, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 999;
+    }
+
+    .modal-box {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      max-width: 540px;
+      width: 100%;
+      max-height: 82vh;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1.5px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .changelog-item {
+      padding: 12px 14px;
+      background: #f9fbf9;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 10px;
     }
 
     @media (max-width: 600px) {
@@ -398,9 +479,20 @@
   <!-- 分頁 3：歷史紀錄、Excel 匯出與 Google 試算表同步 -->
   <section id="tab-history" class="card hidden">
     <h2>📊 歷史紀錄與匯出</h2>
-    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-      <button type="button" class="btn btn-primary" onclick="exportSingleExcel()">📥 匯出目前使用者 Excel (.xlsx)</button>
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+      <button type="button" class="btn btn-primary" onclick="exportSingleExcel()">📥 匯出目前範圍 Excel (.xlsx)</button>
       <button type="button" class="btn btn-outline" id="exportBothBtn" onclick="exportAllUsersExcel()">📑 一次匯出所有家人合併 Excel</button>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-left">
+        <label for="monthFilter" style="font-size:16px; font-weight:700;">查看範圍：</label>
+        <select id="monthFilter" onchange="onMonthFilterChange()">
+          <option value="all">全部紀錄</option>
+        </select>
+        <span id="historyCountHint" style="font-size:14px; color:var(--muted);"></span>
+      </div>
+      <button type="button" class="btn btn-danger btn-sm" onclick="clearLocalHistory()">🗑️ 清除本機歷史紀錄</button>
     </div>
 
     <div class="table-wrap">
@@ -435,14 +527,57 @@
     <div id="syncDetailLog" class="sync-banner"></div>
   </section>
 
-  <footer class="version-footer">版本：rev0.2</footer>
+  <footer class="version-footer">
+    <button type="button" class="version-link" onclick="openChangelogModal()">版本：rev0.3 · 點擊查看更新紀錄</button>
+  </footer>
+</div>
+
+<!-- 版本更新紀錄彈窗 -->
+<div id="changelogModal" class="modal-backdrop hidden" onclick="handleBackdropClick(event)">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
+    <div class="modal-header">
+      <h3 id="changelogTitle" style="margin:0; font-size:20px;">📋 版本更新紀錄</h3>
+      <button type="button" class="btn btn-outline btn-sm" onclick="closeChangelogModal()">✕ 關閉</button>
+    </div>
+    <div id="changelogBody"></div>
+  </div>
 </div>
 
 <script>
-  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbz-lDbXzMfu0Fk7hcGMkxathhvBxaSF8eWfR25pg5_FJrTasHIqadTRWH0POLQ87Qfd/exec';
+  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzf-9L9GeD8V_C4B-T8WzObkAE_6cyP8n2Avoo3xGa6uuw9pt_yCvha75398v96wF66/exec';
 
   const STORAGE_KEY = 'dad_health_tracker_v2';
   const WEBHOOK_KEY = 'dad_health_sheets_webhook_v1';
+
+  const CHANGELOG = [
+    {
+      ver: 'rev0.3',
+      date: '2026-11-19',
+      items: [
+        '頁尾版本號支援點擊彈窗，可隨時檢視各版本更新細節',
+        '歷史與匯出分頁新增「依月份 / 全部」篩選檢視與對應匯出',
+        '新增「清除本機歷史紀錄」按鈕（含二次確認，不影響雲端與同步網址）'
+      ]
+    },
+    {
+      ver: 'rev0.2',
+      date: '2026-11-19',
+      items: [
+        '內建 Google Apps Script 部署網址，減少初次手動貼上步驟',
+        '新增「從雲端抓回目前使用者資料」，僅同步同名使用者避免家人資料衝突',
+        '強化 Excel 匯出元件備援載入與容錯處理'
+      ]
+    },
+    {
+      ver: 'rev0.1',
+      date: '2026-11-19',
+      items: [
+        '支援最多兩位使用者切換（預設爸爸＋可自訂新增一位家人）',
+        '支援早、中、晚三時段血壓心跳紀錄與即時偏高提醒',
+        '內建一鍵喝水累計（150/250/500 ml）、復原上一筆與 Excel (.xlsx) 匯出'
+      ]
+    }
+  ];
 
   function isValidWebhook(url) {
     return typeof url === 'string' && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(url.trim());
@@ -508,6 +643,7 @@
   let currentDate = getTodayStr();
   let currentPeriod = detectPeriodByTime();
   let webhookUrl = resolveInitialWebhook();
+  let selectedMonth = 'all';
 
   function saveStateLocal() {
     try {
@@ -525,6 +661,27 @@
       state.records[userId][dateStr] = createEmptyDay(state.waterGoal);
     }
     return state.records[userId][dateStr];
+  }
+
+  function openChangelogModal() {
+    const body = document.getElementById('changelogBody');
+    body.innerHTML = CHANGELOG.map(entry => `
+      <div class="changelog-item">
+        <div><strong>${entry.ver}</strong> <small style="color:var(--muted);">(${entry.date})</small></div>
+        <ul style="margin:6px 0 0; padding-left:20px; font-size:15px;">
+          ${entry.items.map(i => `<li>${i}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+    document.getElementById('changelogModal').classList.remove('hidden');
+  }
+
+  function closeChangelogModal() {
+    document.getElementById('changelogModal').classList.add('hidden');
+  }
+
+  function handleBackdropClick(e) {
+    if (e.target.id === 'changelogModal') closeChangelogModal();
   }
 
   function renderUsers() {
@@ -714,18 +871,61 @@
     return p.hr ? `${bp} (${p.hr})` : bp;
   }
 
+  function syncMonthFilterOptions(userRecs) {
+    const select = document.getElementById('monthFilter');
+    const months = Array.from(
+      new Set(
+        Object.keys(userRecs || {})
+          .map(d => String(d).slice(0, 7))
+          .filter(m => /^\d{4}-\d{2}$/.test(m))
+      )
+    ).sort().reverse();
+
+    if (selectedMonth !== 'all' && !months.includes(selectedMonth)) {
+      selectedMonth = 'all';
+    }
+
+    select.innerHTML = `<option value="all">全部紀錄</option>` +
+      months.map(m => `<option value="${m}">${m.replace('-', ' 年 ')} 月</option>`).join('');
+    select.value = selectedMonth;
+  }
+
+  function onMonthFilterChange() {
+    selectedMonth = document.getElementById('monthFilter').value || 'all';
+    renderHistoryTab();
+  }
+
+  function clearLocalHistory() {
+    const user = getActiveUser();
+    const ok = confirm(`確定要清除瀏覽器快取中「${user.name}」的所有歷史紀錄嗎？
+（雲端 Google 試算表資料與同步網址設定不會被刪除）`);
+    if (!ok) return;
+
+    state.records[user.id] = {};
+    selectedMonth = 'all';
+    saveStateLocal();
+    renderAll();
+    updateSyncStatusText(`本機狀態：已清除「${user.name}」的本機歷史紀錄`);
+  }
+
   function renderHistoryTab() {
     const user = getActiveUser();
     const userRecs = state.records[user.id] || {};
-    const dates = Object.keys(userRecs).sort().reverse();
-    const tbody = document.getElementById('historyTableBody');
+    syncMonthFilterOptions(userRecs);
 
-    if (!dates.length) {
-      tbody.innerHTML = '<tr><td colspan="5">目前尚無紀錄</td></tr>';
+    const allDates = Object.keys(userRecs).sort().reverse();
+    const filteredDates = allDates.filter(d => selectedMonth === 'all' || d.startsWith(selectedMonth));
+
+    const hintEl = document.getElementById('historyCountHint');
+    hintEl.textContent = allDates.length ? `共 ${filteredDates.length} 筆` : '';
+
+    const tbody = document.getElementById('historyTableBody');
+    if (!filteredDates.length) {
+      tbody.innerHTML = '<tr><td colspan="5">目前篩選範圍內尚無紀錄</td></tr>';
       return;
     }
 
-    tbody.innerHTML = dates.map(d => {
+    tbody.innerHTML = filteredDates.map(d => {
       const r = userRecs[d];
       return `<tr>
         <td>${d}</td>
@@ -737,29 +937,32 @@
     }).join('');
   }
 
-  function buildUserRows(user) {
+  function buildUserRows(user, monthFilter = 'all') {
     const recs = state.records[user.id] || {};
-    return Object.keys(recs).sort().map(d => {
-      const r = recs[d];
-      const m = r.morning || {};
-      const a = r.afternoon || {};
-      const n = r.evening || {};
-      return {
-        '日期': d,
-        '姓名': user.name,
-        '早上收縮壓': m.sys || '',
-        '早上舒張壓': m.dia || '',
-        '早上心跳': m.hr || '',
-        '中午收縮壓': a.sys || '',
-        '中午舒張壓': a.dia || '',
-        '中午心跳': a.hr || '',
-        '晚上收縮壓': n.sys || '',
-        '晚上舒張壓': n.dia || '',
-        '晚上心跳': n.hr || '',
-        '喝水量(ml)': Number(r.water || 0),
-        '每日目標(ml)': Number(r.waterGoal || state.waterGoal || 2000)
-      };
-    });
+    return Object.keys(recs)
+      .filter(d => monthFilter === 'all' || d.startsWith(monthFilter))
+      .sort()
+      .map(d => {
+        const r = recs[d];
+        const m = r.morning || {};
+        const a = r.afternoon || {};
+        const n = r.evening || {};
+        return {
+          '日期': d,
+          '姓名': user.name,
+          '早上收縮壓': m.sys || '',
+          '早上舒張壓': m.dia || '',
+          '早上心跳': m.hr || '',
+          '中午收縮壓': a.sys || '',
+          '中午舒張壓': a.dia || '',
+          '中午心跳': a.hr || '',
+          '晚上收縮壓': n.sys || '',
+          '晚上舒張壓': n.dia || '',
+          '晚上心跳': n.hr || '',
+          '喝水量(ml)': Number(r.water || 0),
+          '每日目標(ml)': Number(r.waterGoal || state.waterGoal || 2000)
+        };
+      });
   }
 
   function exportSingleExcel() {
@@ -768,15 +971,16 @@
       return;
     }
     const user = getActiveUser();
-    const rows = buildUserRows(user);
+    const rows = buildUserRows(user, selectedMonth);
     if (!rows.length) {
-      alert('目前沒有可匯出的資料');
+      alert('目前篩選範圍內沒有可匯出的資料');
       return;
     }
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, user.name.slice(0, 30));
-    XLSX.writeFile(wb, `${user.name}_健康紀錄_${getTodayStr()}.xlsx`);
+    const scopeSuffix = selectedMonth === 'all' ? getTodayStr() : selectedMonth;
+    XLSX.writeFile(wb, `${user.name}_健康紀錄_${scopeSuffix}.xlsx`);
   }
 
   function exportAllUsersExcel() {
@@ -787,7 +991,7 @@
     const wb = XLSX.utils.book_new();
     let hasAny = false;
     state.users.forEach(u => {
-      const rows = buildUserRows(u);
+      const rows = buildUserRows(u, 'all');
       if (rows.length) {
         hasAny = true;
         const ws = XLSX.utils.json_to_sheet(rows);
