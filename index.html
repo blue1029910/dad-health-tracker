@@ -1,1318 +1,841 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>爸爸的每日健康紀錄</title>
-    <!-- 引入 Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 SheetJS 用於產生真正的 .xlsx Excel 檔案 -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-    <!-- 引入 Google Fonts Noto Sans TC 確保繁體中文清晰易讀 -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #FAF9F6; /* 溫暖柔和的米白背景，保護長輩眼睛 */
-            color: #1F2937;
-            font-size: 19px; /* 基準大字體 */
-            -webkit-tap-highlight-color: transparent;
-        }
-        /* 移除數字輸入框的預設上下箭頭，讓畫面更乾淨 */
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        input[type="number"] {
-            -moz-appearance: textfield;
-        }
-        /* 自訂平滑捲動與按鈕按壓回饋 */
-        .btn-press:active {
-            transform: scale(0.97);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>每日健康紀錄（含雲端同步試算表）</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f8f4;
+      --card: #ffffff;
+      --text: #1c2822;
+      --muted: #586960;
+      --primary: #1f6f54;
+      --primary-hover: #175640;
+      --primary-light: #e7f3ee;
+      --water: #1b6ca8;
+      --water-light: #e6f2fb;
+      --warn: #9a5b00;
+      --warn-bg: #fff5e2;
+      --danger: #a62626;
+      --danger-bg: #fdeaea;
+      --ok: #1b6b3a;
+      --ok-bg: #e7f6ec;
+      --border: #d6dfd9;
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 19px;
+      line-height: 1.5;
+      padding-bottom: 48px;
+    }
+
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    header {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+
+    .top-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      color: var(--primary);
+    }
+
+    .date-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    input[type="date"], input[type="number"], input[type="text"], input[type="url"], select {
+      font-size: 19px;
+      padding: 10px 14px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    input[type="number"] {
+      width: 100%;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      padding: 12px 8px;
+    }
+
+    .user-bar {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1.5px dashed var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .user-chip {
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: 2px solid var(--primary);
+      background: #fff;
+      color: var(--primary);
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .user-chip.active {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 14px;
+      padding: 12px 18px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-water { background: var(--water); color: #fff; }
+    .btn-outline { background: #fff; color: var(--text); border: 2px solid var(--border); }
+    .btn-sm { padding: 8px 13px; font-size: 15px; border-radius: 10px; }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .tab-btn {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 8px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .card {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+
+    .period-switch {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .period-btn {
+      padding: 12px 8px;
+      border-radius: 12px;
+      border: 2px solid var(--border);
+      background: #fafafa;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .period-btn.active {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .bp-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .field small {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .status-box {
+      padding: 14px 16px;
+      border-radius: 14px;
+      margin-bottom: 14px;
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .status-ok { background: var(--ok-bg); color: var(--ok); }
+    .status-warn { background: var(--warn-bg); color: var(--warn); }
+    .status-danger { background: var(--danger-bg); color: var(--danger); }
+
+    .summary-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .summary-item {
+      background: #f9fbf9;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      text-align: center;
+      font-size: 16px;
+    }
+
+    .water-progress-wrap {
+      background: var(--water-light);
+      border-radius: 999px;
+      height: 26px;
+      overflow: hidden;
+      margin: 12px 0;
+      border: 1.5px solid #bcd9f0;
+    }
+
+    .water-progress-bar {
+      height: 100%;
+      background: var(--water);
+      transition: width 0.25s ease;
+    }
+
+    .water-btns {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .sync-banner {
+      margin-top: 10px;
+      font-size: 16px;
+      color: var(--muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 8px 6px;
+      text-align: center;
+    }
+
+    th {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .table-wrap { overflow-x: auto; }
+    .hidden { display: none; }
+
+    @media (max-width: 600px) {
+      .bp-grid, .summary-3 { grid-template-columns: 1fr; }
+      h1 { font-size: 22px; }
+    }
+  </style>
 </head>
-<body class="min-h-screen pb-12">
-
-    <!-- 頂部導覽與問候區 -->
-    <header class="bg-[#2E6F40] text-white shadow-md rounded-b-3xl px-5 py-6 mb-5">
-        <div class="max-w-3xl mx-auto">
-            <!-- 使用者切換列 (最多 2 位：爸爸 + 1 位自訂) -->
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-4 border-b border-white/20">
-                <div id="user-switcher-bar" class="flex flex-wrap items-center gap-2.5">
-                    <!-- 動態渲染使用者切換按鈕 -->
-                </div>
-                <button id="manage-user-btn" onclick="openUserModal('edit')" 
-                    class="bg-black/20 hover:bg-black/30 text-white text-base font-bold px-3.5 py-2 rounded-xl border border-white/25 transition-all">
-                    ⚙️ 管理使用者
-                </button>
-            </div>
-
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                    <p id="greeting-text" class="text-emerald-100 text-lg font-medium mb-1">早安！祝您今天順心愉快</p>
-                    <h1 id="app-main-title" class="text-3xl sm:text-4xl font-black tracking-wide">爸爸的健康小幫手</h1>
-                </div>
-                <div class="bg-black/25 px-4 py-2.5 rounded-2xl border border-white/20 self-start sm:self-auto">
-                    <p class="text-sm text-emerald-100">目前紀錄日期</p>
-                    <div class="flex items-center gap-2 mt-0.5">
-                        <input type="date" id="record-date-picker" 
-                            class="bg-transparent text-white font-bold text-xl focus:outline-none cursor-pointer"
-                            aria-label="選擇紀錄日期">
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 若非今日，顯示補登/修改提示條 -->
-            <div id="past-date-banner" class="hidden mt-4 bg-amber-400 text-gray-900 px-4 py-2.5 rounded-xl font-bold flex items-center justify-between">
-                <span>📅 您正在檢視或補登過去的紀錄</span>
-                <button onclick="resetToToday()" class="bg-gray-900 text-white text-base px-3 py-1 rounded-lg hover:bg-gray-800">
-                    回到今天
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <!-- 主分頁切換按鈕 (超大觸控區) -->
-    <nav class="max-w-3xl mx-auto px-4 mb-6">
-        <div class="grid grid-cols-2 gap-3 bg-stone-200/80 p-2 rounded-2xl">
-            <button id="tab-btn-daily" onclick="switchTab('daily')" 
-                class="btn-press py-3.5 px-4 rounded-xl font-bold text-xl transition-all bg-white text-[#2E6F40] shadow-sm">
-                ✍️ 每日紀錄
-            </button>
-            <button id="tab-btn-history" onclick="switchTab('history')" 
-                class="btn-press py-3.5 px-4 rounded-xl font-bold text-xl transition-all text-stone-600 hover:text-stone-900">
-                📋 歷史與匯出
-            </button>
-        </div>
-    </nav>
-
-    <!-- ==================== 分頁一：每日紀錄 ==================== -->
-    <main id="view-daily" class="max-w-3xl mx-auto px-4 space-y-8">
-        
-        <!-- 區塊 1：早中晚血壓與心跳紀錄 -->
-        <section class="bg-white rounded-3xl shadow-sm border border-stone-200 p-5 sm:p-7">
-            <div class="flex items-center justify-between mb-5">
-                <h2 class="text-2xl sm:text-3xl font-black text-[#2E6F40] flex items-center gap-2">
-                    <span>❤️</span> 血壓與心跳紀錄
-                </h2>
-            </div>
-
-            <!-- 時段選擇按鈕 (早上 / 中午 / 晚上) -->
-            <div class="grid grid-cols-3 gap-2.5 sm:gap-3 mb-6">
-                <button id="period-btn-morning" onclick="selectPeriod('morning')"
-                    class="btn-press py-3.5 px-2 sm:px-4 rounded-2xl font-bold text-lg sm:text-xl border-2 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
-                    <span>☀️ 早上</span>
-                    <span id="badge-morning" class="hidden text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full">已記</span>
-                </button>
-                <button id="period-btn-noon" onclick="selectPeriod('noon')"
-                    class="btn-press py-3.5 px-2 sm:px-4 rounded-2xl font-bold text-lg sm:text-xl border-2 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
-                    <span>🌤️ 中午</span>
-                    <span id="badge-noon" class="hidden text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full">已記</span>
-                </button>
-                <button id="period-btn-evening" onclick="selectPeriod('evening')"
-                    class="btn-press py-3.5 px-2 sm:px-4 rounded-2xl font-bold text-lg sm:text-xl border-2 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
-                    <span>🌙 晚上</span>
-                    <span id="badge-evening" class="hidden text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full">已記</span>
-                </button>
-            </div>
-
-            <!-- 血壓與心跳輸入表單 -->
-            <div class="space-y-5">
-                <!-- 收縮壓 -->
-                <div class="bg-stone-50 p-4 rounded-2xl border border-stone-200">
-                    <label for="input-sys" class="block text-xl font-bold text-gray-800 mb-2">
-                        收縮壓 <span class="text-base font-normal text-gray-600">(高壓 / 較大的數字，mmHg)</span>
-                    </label>
-                    <input type="number" id="input-sys" inputmode="numeric" placeholder="例如：120"
-                        oninput="evaluateBloodPressureLive()"
-                        class="w-full text-3xl font-black text-gray-900 bg-white border-2 border-stone-300 focus:border-[#2E6F40] focus:outline-none rounded-xl px-4 py-3.5 placeholder:text-stone-300 placeholder:font-normal">
-                </div>
-
-                <!-- 舒張壓 -->
-                <div class="bg-stone-50 p-4 rounded-2xl border border-stone-200">
-                    <label for="input-dia" class="block text-xl font-bold text-gray-800 mb-2">
-                        舒張壓 <span class="text-base font-normal text-gray-600">(低壓 / 較小的數字，mmHg)</span>
-                    </label>
-                    <input type="number" id="input-dia" inputmode="numeric" placeholder="例如：80"
-                        oninput="evaluateBloodPressureLive()"
-                        class="w-full text-3xl font-black text-gray-900 bg-white border-2 border-stone-300 focus:border-[#2E6F40] focus:outline-none rounded-xl px-4 py-3.5 placeholder:text-stone-300 placeholder:font-normal">
-                </div>
-
-                <!-- 心跳 -->
-                <div class="bg-stone-50 p-4 rounded-2xl border border-stone-200">
-                    <label for="input-pulse" class="block text-xl font-bold text-gray-800 mb-2">
-                        心跳脈搏 <span class="text-base font-normal text-gray-600">(每分鐘幾下，次/分)</span>
-                    </label>
-                    <input type="number" id="input-pulse" inputmode="numeric" placeholder="例如：72"
-                        class="w-full text-3xl font-black text-gray-900 bg-white border-2 border-stone-300 focus:border-[#2E6F40] focus:outline-none rounded-xl px-4 py-3.5 placeholder:text-stone-300 placeholder:font-normal">
-                </div>
-
-                <!-- 即時健康提示框 -->
-                <div id="bp-feedback-box" class="hidden p-4 rounded-2xl border-2 text-lg font-bold transition-all">
-                    <div class="flex items-start gap-3">
-                        <span id="bp-feedback-icon" class="text-2xl mt-0.5"></span>
-                        <div>
-                            <p id="bp-feedback-title" class="text-xl"></p>
-                            <p id="bp-feedback-desc" class="text-base font-normal mt-1 opacity-90"></p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 儲存按鈕 -->
-                <button onclick="saveBloodPressure()" 
-                    class="btn-press w-full bg-[#2E6F40] hover:bg-[#245832] text-white font-black text-2xl py-5 px-6 rounded-2xl shadow-md transition-all flex items-center justify-center gap-3">
-                    <span>💾 儲存<span id="save-btn-period-label">早上</span>血壓心跳</span>
-                </button>
-            </div>
-
-            <!-- 當日早中晚紀錄速覽 -->
-            <div class="mt-6 pt-5 border-t border-stone-200 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div class="bg-amber-50/80 border border-amber-200 rounded-2xl p-4">
-                    <p class="text-base font-bold text-amber-900 mb-1">☀️ 早上已存數值</p>
-                    <p id="summary-morning" class="text-lg font-black text-gray-800">尚未紀錄</p>
-                </div>
-                <div class="bg-orange-50/80 border border-orange-200 rounded-2xl p-4">
-                    <p class="text-base font-bold text-orange-900 mb-1">🌤️ 中午已存數值</p>
-                    <p id="summary-noon" class="text-lg font-black text-gray-800">尚未紀錄</p>
-                </div>
-                <div class="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-4">
-                    <p class="text-base font-bold text-indigo-900 mb-1">🌙 晚上已存數值</p>
-                    <p id="summary-evening" class="text-lg font-black text-gray-800">尚未紀錄</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- 區塊 2：每日喝水量紀錄 -->
-        <section class="bg-white rounded-3xl shadow-sm border border-stone-200 p-5 sm:p-7">
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <h2 class="text-2xl sm:text-3xl font-black text-[#0284C7] flex items-center gap-2">
-                    <span>💧</span> 今日喝水紀錄
-                </h2>
-                <button onclick="toggleGoalModal()" class="text-base font-bold text-[#0284C7] bg-sky-50 hover:bg-sky-100 px-3.5 py-2 rounded-xl border border-sky-200">
-                    ⚙️ 設定目標 (<span id="water-goal-display">2000</span> ml)
-                </button>
-            </div>
-
-            <!-- 喝水進度大字顯示與進度條 -->
-            <div class="bg-sky-50/80 border border-sky-200 rounded-2xl p-5 mb-6">
-                <div class="flex items-baseline justify-between mb-2">
-                    <span class="text-lg font-bold text-sky-900">目前已喝水量</span>
-                    <span id="water-percent-text" class="text-lg font-black text-[#0284C7]">0%</span>
-                </div>
-                <div class="flex items-baseline gap-2 mb-4">
-                    <span id="water-current-display" class="text-4xl sm:text-5xl font-black text-sky-900">0</span>
-                    <span class="text-xl font-bold text-[#0284C7]">/ <span id="water-target-display">2000</span> ml</span>
-                </div>
-                <!-- 視覺化進度條 -->
-                <div class="w-full bg-sky-200/70 h-7 rounded-full overflow-hidden p-1">
-                    <div id="water-progress-bar" class="bg-[#0284C7] h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2" style="width: 0%">
-                    </div>
-                </div>
-                <p id="water-encouragement" class="text-base font-bold text-sky-900 mt-3">
-                    💡 記得少量多次喝水，對身體循環最好喔！
-                </p>
-            </div>
-
-            <!-- 快捷一鍵加水按鈕 -->
-            <p class="text-lg font-bold text-gray-700 mb-3">點一下直接增加喝水量：</p>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                <button onclick="addWater(150)" 
-                    class="btn-press bg-[#0284C7] hover:bg-sky-700 text-white rounded-2xl p-4 shadow-sm transition-all flex flex-col items-center justify-center">
-                    <span class="text-2xl font-black">+ 150 ml</span>
-                    <span class="text-base text-sky-100 mt-0.5">🥤 小紙杯</span>
-                </button>
-                <button onclick="addWater(250)" 
-                    class="btn-press bg-[#0284C7] hover:bg-sky-700 text-white rounded-2xl p-4 shadow-sm transition-all flex flex-col items-center justify-center">
-                    <span class="text-2xl font-black">+ 250 ml</span>
-                    <span class="text-base text-sky-100 mt-0.5">☕ 馬克杯</span>
-                </button>
-                <button onclick="addWater(500)" 
-                    class="btn-press bg-[#0284C7] hover:bg-sky-700 text-white rounded-2xl p-4 shadow-sm transition-all flex flex-col items-center justify-center">
-                    <span class="text-2xl font-black">+ 500 ml</span>
-                    <span class="text-base text-sky-100 mt-0.5">🍼 保溫瓶</span>
-                </button>
-            </div>
-
-            <!-- 自訂毫升數與復原按鈕 -->
-            <div class="flex flex-col sm:flex-row gap-3 pt-2 border-t border-stone-100">
-                <div class="flex-1 flex gap-2">
-                    <input type="number" id="custom-water-input" inputmode="numeric" placeholder="自訂 ml 數"
-                        class="w-full text-xl font-bold bg-stone-50 border-2 border-stone-300 focus:border-[#0284C7] focus:outline-none rounded-xl px-4 py-3">
-                    <button onclick="addCustomWater()" 
-                        class="btn-press bg-sky-800 hover:bg-sky-900 text-white font-bold text-lg px-5 py-3 rounded-xl whitespace-nowrap">
-                        加入
-                    </button>
-                </div>
-                <button id="undo-water-btn" onclick="undoLastWater()" disabled
-                    class="btn-press bg-stone-200 hover:bg-stone-300 disabled:opacity-40 disabled:pointer-events-none text-stone-800 font-bold text-lg px-5 py-3 rounded-xl flex items-center justify-center gap-1.5">
-                    <span>↩️ 復原上一筆</span>
-                </button>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- ==================== 分頁二：歷史紀錄與匯出 ==================== -->
-    <main id="view-history" class="hidden max-w-3xl mx-auto px-4 space-y-6">
-        
-        <!-- 一鍵匯出 Excel 大按鈕區 -->
-        <section class="bg-[#2E6F40] text-white rounded-3xl p-6 shadow-md">
-            <h2 id="export-section-title" class="text-2xl font-black mb-2">📊 匯出爸爸的 Excel 健康報表</h2>
-            <p class="text-emerald-100 text-lg mb-5">
-                一鍵下載完整表格，方便傳給家人或列印出來帶去給醫生參考。
-            </p>
-            <div class="space-y-3">
-                <button onclick="exportToExcel(false)" 
-                    class="btn-press w-full bg-white text-[#2E6F40] hover:bg-emerald-50 font-black text-2xl py-4 px-6 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-3">
-                    <span>📥 下載<span id="export-single-user-label">爸爸</span>的 Excel (.xlsx)</span>
-                </button>
-                <button id="export-all-users-btn" onclick="exportToExcel(true)" 
-                    class="hidden btn-press w-full bg-emerald-950/60 hover:bg-emerald-950/80 text-white border-2 border-white/30 font-bold text-xl py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-2">
-                    <span>👨‍👩‍👧 一次匯出兩位家人的合併 Excel (分頁顯示)</span>
-                </button>
-            </div>
-        </section>
-
-        <!-- 歷史紀錄列表 -->
-        <section class="bg-white rounded-3xl shadow-sm border border-stone-200 p-5 sm:p-7">
-            <div class="flex items-center justify-between mb-5">
-                <h2 id="history-list-title" class="text-2xl font-black text-gray-900">📅 爸爸的每日健康明細</h2>
-                <span id="history-count-badge" class="bg-stone-100 text-stone-700 font-bold px-3 py-1 rounded-full text-base">
-                    共 0 天
-                </span>
-            </div>
-
-            <!-- 紀錄清單容器 -->
-            <div id="history-list-container" class="space-y-4">
-                <!-- 動態產生紀錄卡片 -->
-            </div>
-        </section>
-
-        <!-- 資料備份與還原 -->
-        <section class="bg-stone-200/70 rounded-2xl p-5 text-stone-700">
-            <h3 class="text-lg font-bold mb-2">🛡️ 資料安全備份 (換手機時使用)</h3>
-            <p class="text-base mb-4">所有使用者的紀錄都會自動存在這支手機/電腦裡。若要更換設備，可先匯出完整備份檔。</p>
-            <div class="flex flex-wrap gap-3">
-                <button onclick="exportJSONBackup()" class="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 font-bold text-base px-4 py-2.5 rounded-xl">
-                    匯出完整備份檔 (.json)
-                </button>
-                <label class="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 font-bold text-base px-4 py-2.5 rounded-xl cursor-pointer">
-                    匯入備份檔
-                    <input type="file" id="import-json-input" accept=".json" class="hidden" onchange="importJSONBackup(event)">
-                </label>
-            </div>
-        </section>
-    </main>
-
-    <!-- ==================== 彈出式提示訊息 (取代 alert) ==================== -->
-    <div id="toast-notification" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform translate-y-4 w-[90%] max-w-md">
-        <div id="toast-content" class="bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-xl font-bold text-xl text-center flex items-center justify-center gap-3">
-            <span id="toast-icon">✅</span>
-            <span id="toast-message">已儲存紀錄！</span>
-        </div>
+<body>
+<div class="container">
+  <header>
+    <div class="top-row">
+      <h1>🩺 每日健康紀錄</h1>
+      <div class="date-box">
+        <label for="recordDate"><strong>日期：</strong></label>
+        <input type="date" id="recordDate" />
+      </div>
     </div>
 
-    <!-- ==================== 新增 / 管理使用者視窗 ==================== -->
-    <div id="user-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <h3 id="user-modal-title" class="text-2xl font-black text-gray-900 mb-2">新增第二位使用者</h3>
-            <p id="user-modal-desc" class="text-base text-gray-600 mb-4">除了「爸爸」之外，最多可以再新增 1 位家人（例如：媽媽），各自獨立紀錄血壓與喝水量。</p>
-            
-            <!-- 快捷稱謂選擇 (新增時顯示) -->
-            <div id="quick-name-pills" class="flex flex-wrap gap-2 mb-3">
-                <button type="button" onclick="fillUserName('媽媽')" class="bg-emerald-50 hover:bg-emerald-100 text-[#2E6F40] border border-emerald-200 font-bold px-3.5 py-1.5 rounded-xl text-base">👩 媽媽</button>
-                <button type="button" onclick="fillUserName('阿公')" class="bg-emerald-50 hover:bg-emerald-100 text-[#2E6F40] border border-emerald-200 font-bold px-3.5 py-1.5 rounded-xl text-base">👴 阿公</button>
-                <button type="button" onclick="fillUserName('阿嬤')" class="bg-emerald-50 hover:bg-emerald-100 text-[#2E6F40] border border-emerald-200 font-bold px-3.5 py-1.5 rounded-xl text-base">👵 阿嬤</button>
-            </div>
+    <div class="user-bar" id="userBar"></div>
+    <div class="sync-banner" id="globalSyncStatus">雲端狀態：尚未設定 Google 試算表網址（仍可正常使用本機紀錄與 Excel 匯出）</div>
+  </header>
 
-            <div class="mb-5">
-                <label for="user-name-input" class="block text-lg font-bold text-gray-800 mb-2">使用者名稱</label>
-                <input type="text" id="user-name-input" maxlength="10" placeholder="請輸入稱呼（例如：媽媽）"
-                    class="w-full text-2xl font-black text-gray-900 bg-stone-50 border-2 border-stone-300 focus:border-[#2E6F40] focus:outline-none rounded-xl px-4 py-3">
-            </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="bp">❤️ 血壓心跳</button>
+    <button class="tab-btn" data-tab="water">💧 喝水紀錄</button>
+    <button class="tab-btn" data-tab="history">📊 歷史與雲端</button>
+  </div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="closeUserModal()" class="bg-stone-200 hover:bg-stone-300 text-gray-800 font-bold text-xl py-3.5 rounded-xl">
-                    取消
-                </button>
-                <button onclick="saveUserModal()" class="bg-[#2E6F40] hover:bg-[#245832] text-white font-bold text-xl py-3.5 rounded-xl">
-                    確定儲存
-                </button>
-            </div>
+  <!-- 分頁 1：血壓心跳 -->
+  <section id="tab-bp" class="card">
+    <h2>血壓與心跳紀錄（<span id="bpUserName">爸爸</span>）</h2>
 
-            <!-- 刪除第二位使用者區塊 (僅在編輯第二位使用者時顯示) -->
-            <div id="delete-second-user-zone" class="hidden mt-5 pt-4 border-t border-stone-200">
-                <button onclick="promptDeleteSecondUser()" class="w-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-lg py-3 rounded-xl">
-                    🗑️ 刪除這位使用者與所有紀錄
-                </button>
-            </div>
-        </div>
+    <div class="period-switch">
+      <button type="button" class="period-btn" data-period="morning">☀️ 早上</button>
+      <button type="button" class="period-btn" data-period="afternoon">🌤️ 中午</button>
+      <button type="button" class="period-btn" data-period="evening">🌙 晚上</button>
     </div>
 
-    <!-- ==================== 設定喝水目標視窗 ==================== -->
-    <div id="goal-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <h3 id="goal-modal-title" class="text-2xl font-black text-gray-900 mb-2">設定每日喝水目標</h3>
-            <p class="text-base text-gray-600 mb-4">建議一般成人每日飲水量約為 1500 ~ 2000 ml（若有醫師特別指示請依醫囑調整）。</p>
-            <div class="mb-5">
-                <label for="goal-input" class="block text-lg font-bold text-gray-800 mb-2">目標毫升數 (ml)</label>
-                <input type="number" id="goal-input" inputmode="numeric" value="2000"
-                    class="w-full text-3xl font-black text-[#0284C7] bg-stone-50 border-2 border-stone-300 focus:border-[#0284C7] focus:outline-none rounded-xl px-4 py-3">
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="toggleGoalModal()" class="bg-stone-200 hover:bg-stone-300 text-gray-800 font-bold text-xl py-3.5 rounded-xl">
-                    取消
-                </button>
-                <button onclick="saveWaterGoal()" class="bg-[#0284C7] hover:bg-sky-700 text-white font-bold text-xl py-3.5 rounded-xl">
-                    確定儲存
-                </button>
-            </div>
-        </div>
+    <div class="bp-grid">
+      <div class="field">
+        <label for="sysInput">收縮壓（高壓）</label>
+        <input type="number" id="sysInput" inputmode="numeric" placeholder="例：125" min="60" max="260" />
+        <small>建議參考 &lt; 120–130 mmHg</small>
+      </div>
+      <div class="field">
+        <label for="diaInput">舒張壓（低壓）</label>
+        <input type="number" id="diaInput" inputmode="numeric" placeholder="例：78" min="40" max="160" />
+        <small>建議參考 &lt; 80 mmHg</small>
+      </div>
+      <div class="field">
+        <label for="hrInput">心跳（次/分）</label>
+        <input type="number" id="hrInput" inputmode="numeric" placeholder="例：72" min="30" max="220" />
+        <small>安靜休息時 60–100 次/分</small>
+      </div>
     </div>
 
-    <!-- ==================== 自訂刪除確認視窗 (取代 confirm) ==================== -->
-    <div id="delete-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <h3 id="delete-modal-title" class="text-2xl font-black text-red-700 mb-2">確定要刪除紀錄嗎？</h3>
-            <p id="delete-modal-desc" class="text-lg text-gray-700 mb-6">刪除後將無法復原這天的血壓與喝水資料。</p>
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="closeDeleteModal()" class="bg-stone-200 hover:bg-stone-300 text-gray-800 font-bold text-xl py-3.5 rounded-xl">
-                    先不要
-                </button>
-                <button id="confirm-delete-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold text-xl py-3.5 rounded-xl">
-                    確定刪除
-                </button>
-            </div>
-        </div>
+    <div id="bpEvalBox" class="status-box status-ok">請輸入收縮壓與舒張壓數值以查看即時提示。</div>
+
+    <button type="button" class="btn btn-primary" style="width:100%; padding:15px;" id="saveBpBtn">
+      💾 儲存本時段並同步至 Google 試算表
+    </button>
+
+    <div class="summary-3" id="todayThreePeriods"></div>
+  </section>
+
+  <!-- 分頁 2：喝水紀錄 -->
+  <section id="tab-water" class="card hidden">
+    <h2>每日喝水累計（<span id="waterUserName">爸爸</span>）</h2>
+    <div>
+      已喝：<strong id="waterCurrentText" style="font-size:28px; color:var(--water);">0</strong> /
+      <span id="waterGoalText">2000</span> ml
+    </div>
+    <div class="water-progress-wrap">
+      <div class="water-progress-bar" id="waterProgressBar" style="width:0%"></div>
     </div>
 
-    <script>
-        // ==================== 多使用者與資料結構管理 ====================
-        const MULTI_STORAGE_KEY = 'family_health_app_v2';
-        const LEGACY_STORAGE_KEY = 'dad_health_records_v1';
-        const LEGACY_GOAL_KEY = 'dad_water_goal_v1';
+    <div class="water-btns">
+      <button type="button" class="btn btn-water" onclick="addWater(150)">+ 150 ml</button>
+      <button type="button" class="btn btn-water" onclick="addWater(250)">+ 250 ml</button>
+      <button type="button" class="btn btn-water" onclick="addWater(500)">+ 500 ml</button>
+    </div>
 
-        /*
-         * appState 結構:
-         * {
-         *   activeUserId: 'dad',
-         *   users: [
-         *     { id: 'dad', name: '爸爸', icon: '👨', waterGoal: 2000, records: { "YYYY-MM-DD": { morning, noon, evening, water, waterLogs } } }
-         *   ] // 最多 2 位
-         * }
-         */
-        let appState = {
-            activeUserId: 'dad',
-            users: [
-                {
-                    id: 'dad',
-                    name: '爸爸',
-                    icon: '👨',
-                    waterGoal: 2000,
-                    records: {}
-                }
-            ]
-        };
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:12px;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="undoWater()">↩️ 復原上一筆</button>
+      <label style="font-size:16px;">每日目標 (ml)：
+        <input type="number" id="waterGoalInput" value="2000" min="500" max="6000" step="100" style="width:110px; font-size:17px; padding:6px;" onchange="updateWaterGoal()" />
+      </label>
+    </div>
+  </section>
 
-        let currentSelectedDate = getTodayDateString();
-        let currentPeriod = 'morning'; // 'morning' | 'noon' | 'evening'
-        let userModalMode = 'add'; // 'add' | 'edit'
-        let toastTimer = null;
+  <!-- 分頁 3：歷史紀錄、Excel 匯出與 Google 試算表同步 -->
+  <section id="tab-history" class="card hidden">
+    <h2>📊 歷史紀錄與匯出</h2>
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <button type="button" class="btn btn-primary" onclick="exportSingleExcel()">📥 匯出目前使用者 Excel (.xlsx)</button>
+      <button type="button" class="btn btn-outline" id="exportBothBtn" onclick="exportAllUsersExcel()">📑 一次匯出所有家人合併 Excel</button>
+    </div>
 
-        // ==================== 初始化 ====================
-        window.onload = function() {
-            loadAppState();
-            initGreetingAndPeriod();
-            
-            const datePicker = document.getElementById('record-date-picker');
-            datePicker.value = currentSelectedDate;
-            datePicker.addEventListener('change', (e) => {
-                if (e.target.value) {
-                    currentSelectedDate = e.target.value;
-                    updateDateBanner();
-                    renderAllViews();
-                }
-            });
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>早壓/心</th>
+            <th>中壓/心</th>
+            <th>晚壓/心</th>
+            <th>喝水(ml)</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody"></tbody>
+      </table>
+    </div>
 
-            renderAllViews();
-        };
+    <hr style="margin:22px 0; border:none; border-top:1.5px solid var(--border);" />
 
-        // 取得本地 YYYY-MM-DD 字串
-        function getTodayDateString() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
+    <h2>☁️ Google 試算表自動同步設定</h2>
+    <p style="font-size:16px; color:var(--muted); margin-top:0;">
+      貼上 Google Apps Script 部署後的網址（以 <code>/exec</code> 結尾）。設定後，每次按儲存血壓或加喝水，都會自動把當日資料同步到您的 Google 試算表。
+    </p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      <input type="url" id="webhookUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:240px;" />
+      <button type="button" class="btn btn-primary" onclick="saveWebhookUrl()">儲存網址</button>
+      <button type="button" class="btn btn-outline" onclick="testSyncNow()">🔄 立即同步今天資料</button>
+    </div>
+    <div id="syncDetailLog" class="sync-banner"></div>
+  </section>
+</div>
+
+<script>
+  const STORAGE_KEY = 'dad_health_tracker_v2';
+  const WEBHOOK_KEY = 'dad_health_sheets_webhook_v1';
+
+  function getTodayStr() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function detectPeriodByTime() {
+    const h = new Date().getHours();
+    if (h >= 4 && h < 11) return 'morning';
+    if (h >= 11 && h < 17) return 'afternoon';
+    return 'evening';
+  }
+
+  function createEmptyDay(goal = 2000) {
+    return {
+      morning: { sys: '', dia: '', hr: '' },
+      afternoon: { sys: '', dia: '', hr: '' },
+      evening: { sys: '', dia: '', hr: '' },
+      water: 0,
+      waterHistory: [],
+      waterGoal: goal
+    };
+  }
+
+  function loadState() {
+    const fallback = {
+      users: [{ id: 'dad', name: '爸爸' }],
+      activeUserId: 'dad',
+      waterGoal: 2000,
+      records: {} // { [userId]: { [dateStr]: dayObj } }
+    };
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return {
+        users: Array.isArray(parsed.users) && parsed.users.length ? parsed.users.slice(0, 2) : fallback.users,
+        activeUserId: parsed.activeUserId || 'dad',
+        waterGoal: parsed.waterGoal || 2000,
+        records: parsed.records || {}
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  let state = loadState();
+  let currentDate = getTodayStr();
+  let currentPeriod = detectPeriodByTime();
+  let webhookUrl = localStorage.getItem(WEBHOOK_KEY) || '';
+
+  function saveStateLocal() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function getActiveUser() {
+    return state.users.find(u => u.id === state.activeUserId) || state.users[0];
+  }
+
+  function ensureDayRecord(userId, dateStr) {
+    if (!state.records[userId]) state.records[userId] = {};
+    if (!state.records[userId][dateStr]) {
+      state.records[userId][dateStr] = createEmptyDay(state.waterGoal);
+    }
+    return state.records[userId][dateStr];
+  }
+
+  function renderUsers() {
+    const bar = document.getElementById('userBar');
+    bar.innerHTML = '';
+
+    state.users.forEach(user => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'user-chip' + (user.id === state.activeUserId ? ' active' : '');
+      btn.textContent = `👤 ${user.name}`;
+      btn.onclick = () => {
+        state.activeUserId = user.id;
+        saveStateLocal();
+        renderAll();
+      };
+      bar.appendChild(btn);
+    });
+
+    if (state.users.length < 2) {
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'btn btn-outline btn-sm';
+      addBtn.textContent = '➕ 新增第二位家人';
+      addBtn.onclick = () => {
+        const name = prompt('請輸入第二位家人稱呼（例如：媽媽、阿公、阿嬤）：');
+        if (!name || !name.trim()) return;
+        state.users.push({ id: 'member_2', name: name.trim() });
+        state.activeUserId = 'member_2';
+        saveStateLocal();
+        renderAll();
+      };
+      bar.appendChild(addBtn);
+    } else {
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'btn btn-outline btn-sm';
+      editBtn.textContent = '✏️ 改名/移除第二位';
+      editBtn.onclick = () => {
+        const second = state.users[1];
+        const nextName = prompt(`修改「${second.name}」的稱呼（留空則移除此使用者）：`, second.name);
+        if (nextName === null) return;
+        if (!nextName.trim()) {
+          state.users = [state.users[0]];
+          state.activeUserId = state.users[0].id;
+        } else {
+          second.name = nextName.trim();
         }
-
-        // 依現在時間設定問候語與預設早/中/晚時段
-        function initGreetingAndPeriod() {
-            const hour = new Date().getHours();
-            const greetingEl = document.getElementById('greeting-text');
-            
-            if (hour >= 4 && hour < 11) {
-                greetingEl.textContent = '☀️ 早安！記得先量個血壓、喝杯溫開水喔';
-                currentPeriod = 'morning';
-            } else if (hour >= 11 && hour < 17) {
-                greetingEl.textContent = '🌤️ 午安！中午量一下血壓，也別忘了多喝水';
-                currentPeriod = 'noon';
-            } else {
-                greetingEl.textContent = '🌙 晚安！睡前量一下血壓，安心好眠';
-                currentPeriod = 'evening';
-            }
-        }
-
-        // 讀取資料（含舊版單人資料自動無痛升級）
-        function loadAppState() {
-            try {
-                const rawV2 = localStorage.getItem(MULTI_STORAGE_KEY);
-                if (rawV2) {
-                    const parsed = JSON.parse(rawV2);
-                    if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
-                        appState = parsed;
-                        // 確保 activeUserId 有效
-                        if (!appState.users.some(u => u.id === appState.activeUserId)) {
-                            appState.activeUserId = appState.users[0].id;
-                        }
-                        return;
-                    }
-                }
-
-                // 若無 v2 資料，檢查是否有舊版爸爸紀錄並自動匯入
-                const legacyRecordsRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-                const legacyGoalRaw = localStorage.getItem(LEGACY_GOAL_KEY);
-                if (legacyRecordsRaw) {
-                    appState.users[0].records = JSON.parse(legacyRecordsRaw) || {};
-                }
-                if (legacyGoalRaw && !isNaN(parseInt(legacyGoalRaw))) {
-                    appState.users[0].waterGoal = parseInt(legacyGoalRaw);
-                }
-                saveAppState();
-            } catch (err) {
-                console.error('讀取資料失敗:', err);
-            }
-        }
-
-        function saveAppState() {
-            try {
-                localStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(appState));
-            } catch (err) {
-                showToast('⚠️ 儲存空間已滿，建議先匯出 Excel 備份', 'warning');
-            }
-        }
-
-        function getActiveUser() {
-            return appState.users.find(u => u.id === appState.activeUserId) || appState.users[0];
-        }
-
-        function getDayRecord(dateStr, user = getActiveUser()) {
-            if (!user.records[dateStr]) {
-                user.records[dateStr] = {
-                    morning: null,
-                    noon: null,
-                    evening: null,
-                    water: 0,
-                    waterLogs: []
-                };
-            }
-            return user.records[dateStr];
-        }
-
-        // ==================== 多使用者切換與管理 ====================
-        function renderUserHeader() {
-            const switcherBar = document.getElementById('user-switcher-bar');
-            const activeUser = getActiveUser();
-
-            let buttonsHtml = appState.users.map(u => {
-                const isActive = u.id === activeUser.id;
-                const btnStyle = isActive
-                    ? 'bg-white text-[#2E6F40] shadow-md ring-2 ring-amber-300'
-                    : 'bg-black/20 hover:bg-black/30 text-white border border-white/25';
-                return `
-                    <button onclick="switchUser('${u.id}')" 
-                        class="btn-press px-4 py-2.5 rounded-2xl font-black text-xl transition-all flex items-center gap-2 ${btnStyle}">
-                        <span>${u.icon || '👤'}</span>
-                        <span>${escapeHtml(u.name)}</span>
-                    </button>
-                `;
-            }).join('');
-
-            // 若目前只有 1 位使用者，顯示「+ 新增第二位使用者」按鈕
-            if (appState.users.length < 2) {
-                buttonsHtml += `
-                    <button onclick="openUserModal('add')" 
-                        class="btn-press px-4 py-2.5 rounded-2xl font-bold text-lg bg-amber-400 hover:bg-amber-300 text-gray-950 shadow-sm transition-all flex items-center gap-1.5">
-                        <span>➕ 新增第二位使用者</span>
-                    </button>
-                `;
-            }
-
-            switcherBar.innerHTML = buttonsHtml;
-
-            // 更新標題與各處名稱顯示
-            const safeName = escapeHtml(activeUser.name);
-            document.getElementById('app-main-title').textContent = `${safeName}的健康小幫手`;
-            document.getElementById('export-section-title').textContent = `📊 匯出${safeName}的 Excel 健康報表`;
-            document.getElementById('export-single-user-label').textContent = safeName;
-            document.getElementById('history-list-title').textContent = `📅 ${safeName}的每日健康明細`;
-
-            // 若有 2 位使用者，在歷史頁顯示「一次匯出兩位家人的合併 Excel」按鈕
-            const exportAllBtn = document.getElementById('export-all-users-btn');
-            if (appState.users.length > 1) {
-                exportAllBtn.classList.remove('hidden');
-            } else {
-                exportAllBtn.classList.add('hidden');
-            }
-        }
-
-        function switchUser(userId) {
-            if (appState.activeUserId === userId) return;
-            appState.activeUserId = userId;
-            saveAppState();
-            renderAllViews();
-            const user = getActiveUser();
-            showToast(`已切換為「${user.name}」的健康紀錄`);
-        }
-
-        function openUserModal(mode) {
-            userModalMode = mode;
-            const modal = document.getElementById('user-modal');
-            const titleEl = document.getElementById('user-modal-title');
-            const descEl = document.getElementById('user-modal-desc');
-            const inputEl = document.getElementById('user-name-input');
-            const quickPills = document.getElementById('quick-name-pills');
-            const deleteZone = document.getElementById('delete-second-user-zone');
-
-            if (mode === 'add') {
-                if (appState.users.length >= 2) {
-                    showToast('最多只能設定兩位使用者喔！', 'warning');
-                    return;
-                }
-                titleEl.textContent = '➕ 新增第二位使用者';
-                descEl.textContent = '除了第一位使用者外，可再新增 1 位家人（例如：媽媽），各自獨立紀錄血壓與喝水量。';
-                inputEl.value = '';
-                quickPills.classList.remove('hidden');
-                deleteZone.classList.add('hidden');
-            } else {
-                const activeUser = getActiveUser();
-                titleEl.textContent = `✏️ 修改「${activeUser.name}」的名稱`;
-                descEl.textContent = '您可以修改顯示的稱呼名稱（最多 10 個字）。';
-                inputEl.value = activeUser.name;
-                quickPills.classList.add('hidden');
-                // 只有第二位使用者可以刪除，保留第一位預設使用者
-                if (activeUser.id !== 'dad') {
-                    deleteZone.classList.remove('hidden');
-                } else {
-                    deleteZone.classList.add('hidden');
-                }
-            }
-
-            modal.classList.remove('hidden');
-            setTimeout(() => inputEl.focus(), 100);
-        }
-
-        function closeUserModal() {
-            document.getElementById('user-modal').classList.add('hidden');
-        }
-
-        function fillUserName(name) {
-            document.getElementById('user-name-input').value = name;
-        }
-
-        function saveUserModal() {
-            const rawName = document.getElementById('user-name-input').value.trim();
-            if (!rawName) {
-                showToast('請輸入使用者名稱喔！', 'warning');
-                return;
-            }
-
-            if (userModalMode === 'add') {
-                if (appState.users.length >= 2) {
-                    closeUserModal();
-                    return;
-                }
-                // 依名稱挑選合適頭像
-                let icon = '🧑';
-                if (rawName.includes('媽') || rawName.includes('嬤') || rawName.includes('姐') || rawName.includes('妹') || rawName.includes('婆')) {
-                    icon = '👩';
-                } else if (rawName.includes('公') || rawName.includes('爺')) {
-                    icon = '👴';
-                }
-                const newUser = {
-                    id: 'user_' + Date.now(),
-                    name: rawName,
-                    icon: icon,
-                    waterGoal: 2000,
-                    records: {}
-                };
-                appState.users.push(newUser);
-                appState.activeUserId = newUser.id;
-                saveAppState();
-                closeUserModal();
-                renderAllViews();
-                showToast(`🎉 已新增「${rawName}」並切換完成！`);
-            } else {
-                const activeUser = getActiveUser();
-                activeUser.name = rawName;
-                saveAppState();
-                closeUserModal();
-                renderAllViews();
-                showToast(`✅ 已更新名稱為「${rawName}」`);
-            }
-        }
-
-        function promptDeleteSecondUser() {
-            const activeUser = getActiveUser();
-            if (activeUser.id === 'dad') return;
-
-            closeUserModal();
-            document.getElementById('delete-modal-title').textContent = `確定要刪除「${activeUser.name}」嗎？`;
-            document.getElementById('delete-modal-desc').textContent = `刪除後，「${activeUser.name}」的所有血壓與喝水紀錄將會一併清除且無法恢復。`;
-            document.getElementById('delete-modal').classList.remove('hidden');
-            document.getElementById('confirm-delete-btn').onclick = confirmDeleteSecondUser;
-        }
-
-        function confirmDeleteSecondUser() {
-            const activeUser = getActiveUser();
-            if (activeUser.id !== 'dad') {
-                const deletedName = activeUser.name;
-                appState.users = appState.users.filter(u => u.id !== activeUser.id);
-                appState.activeUserId = appState.users[0].id;
-                saveAppState();
-                renderAllViews();
-                showToast(`🗑️ 已刪除「${deletedName}」的資料`);
-            }
-            closeDeleteModal();
-        }
-
-        function renderAllViews() {
-            renderUserHeader();
-            renderDailyView();
-            if (!document.getElementById('view-history').classList.contains('hidden')) {
-                renderHistoryView();
-            }
-        }
-
-        // ==================== 分頁與日期切換 ====================
-        function switchTab(tabName) {
-            const dailyView = document.getElementById('view-daily');
-            const historyView = document.getElementById('view-history');
-            const btnDaily = document.getElementById('tab-btn-daily');
-            const btnHistory = document.getElementById('tab-btn-history');
-
-            if (tabName === 'daily') {
-                dailyView.classList.remove('hidden');
-                historyView.classList.add('hidden');
-                btnDaily.className = 'btn-press py-3.5 px-4 rounded-xl font-bold text-xl transition-all bg-white text-[#2E6F40] shadow-sm';
-                btnHistory.className = 'btn-press py-3.5 px-4 rounded-xl font-bold text-xl transition-all text-stone-600 hover:text-stone-900';
-                renderDailyView();
-            } else {
-                dailyView.classList.add('hidden');
-                historyView.classList.remove('hidden');
-                btnHistory.className = 'btn-press py-3.5 px-4 rounded-xl font-bold text-xl transition-all bg-white text-[#2E6F40] shadow-sm';
-                btnDaily.className = 'btn-press py-3.5 px-4 rounded-xl font-bold text-xl transition-all text-stone-600 hover:text-stone-900';
-                renderHistoryView();
-            }
-        }
-
-        function resetToToday() {
-            currentSelectedDate = getTodayDateString();
-            document.getElementById('record-date-picker').value = currentSelectedDate;
-            updateDateBanner();
-            renderAllViews();
-        }
-
-        function updateDateBanner() {
-            const banner = document.getElementById('past-date-banner');
-            if (currentSelectedDate !== getTodayDateString()) {
-                banner.classList.remove('hidden');
-            } else {
-                banner.classList.add('hidden');
-            }
-        }
-
-        // ==================== 早 / 中 / 晚 血壓與心跳功能 ====================
-        function selectPeriod(period) {
-            currentPeriod = period;
-            renderDailyView();
-        }
-
-        function renderDailyView() {
-            const activeUser = getActiveUser();
-            const record = getDayRecord(currentSelectedDate, activeUser);
-
-            // 更新早中晚切換按鈕樣式
-            const btnMorning = document.getElementById('period-btn-morning');
-            const btnNoon = document.getElementById('period-btn-noon');
-            const btnEvening = document.getElementById('period-btn-evening');
-            const periodLabel = document.getElementById('save-btn-period-label');
-
-            const inactiveClass = 'btn-press py-3.5 px-2 sm:px-4 rounded-2xl font-bold text-lg sm:text-xl border-2 border-stone-200 bg-white text-stone-600 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2';
-
-            btnMorning.className = currentPeriod === 'morning'
-                ? 'btn-press py-3.5 px-2 sm:px-4 rounded-2xl font-bold text-lg sm:text-xl border-2 border-amber-500 bg-amber-50 text-amber-950 shadow-sm transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2'
-                : inactiveClass;
-
-            btnNoon.className = currentPeriod === 'noon'
-                ? 'btn-press py-3.5 px-2 sm:px-4 rounded-2xl font-bold text-lg sm:text-xl border-2 border-orange-500 bg-orange-50 text-orange-950 shadow-sm transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2'
-                : inactiveClass;
-
-            btnEvening.className = currentPeriod === 'evening'
-                ? 'btn-press py-3.5 px-2 sm:px-4 rounded-2xl font-bold text-lg sm:text-xl border-2 border-indigo-500 bg-indigo-50 text-indigo-950 shadow-sm transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2'
-                : inactiveClass;
-
-            const periodNameMap = { morning: '早上', noon: '中午', evening: '晚上' };
-            periodLabel.textContent = periodNameMap[currentPeriod];
-
-            // 顯示已紀錄徽章
-            document.getElementById('badge-morning').classList.toggle('hidden', !record.morning);
-            document.getElementById('badge-noon').classList.toggle('hidden', !record.noon);
-            document.getElementById('badge-evening').classList.toggle('hidden', !record.evening);
-
-            // 填入該時段既有的數值（方便修改）
-            const currentData = record[currentPeriod];
-            document.getElementById('input-sys').value = currentData ? currentData.sys : '';
-            document.getElementById('input-dia').value = currentData ? currentData.dia : '';
-            document.getElementById('input-pulse').value = currentData ? currentData.pulse : '';
-
-            // 更新即時健康提示
-            evaluateBloodPressureLive();
-
-            // 更新當日早中晚速覽
-            renderPeriodSummaryCard('summary-morning', record.morning);
-            renderPeriodSummaryCard('summary-noon', record.noon);
-            renderPeriodSummaryCard('summary-evening', record.evening);
-
-            // 更新喝水區塊
-            renderWaterSection(record, activeUser);
-        }
-
-        function renderPeriodSummaryCard(elementId, data) {
-            const el = document.getElementById(elementId);
-            if (data) {
-                const status = getBPStatus(data.sys, data.dia);
-                el.innerHTML = `
-                    <div class="leading-snug">
-                        <span>${data.sys} / ${data.dia}</span>
-                        <span class="text-xs font-normal text-gray-500">mmHg</span>
-                    </div>
-                    <div class="text-base font-bold text-gray-700 mt-0.5 flex items-center flex-wrap gap-1.5">
-                        <span>心跳 ${data.pulse}</span>
-                        <span class="text-xs px-2 py-0.5 rounded-lg ${status.badgeClass}">${status.shortLabel}</span>
-                    </div>
-                `;
-            } else {
-                el.innerHTML = `<span class="text-stone-400 font-bold">尚未紀錄</span>`;
-            }
-        }
-
-        // 判斷血壓狀態
-        function getBPStatus(sys, dia) {
-            if (sys >= 140 || dia >= 90) {
-                return {
-                    level: 'high',
-                    shortLabel: '偏高',
-                    title: '血壓稍微偏高囉！',
-                    desc: '請先坐下來休息 5～10 分鐘、放輕鬆深呼吸後再量一次。若持續偏高，請記得諮詢醫師。',
-                    boxClass: 'bg-red-50 border-red-400 text-red-900',
-                    badgeClass: 'bg-red-100 text-red-800 font-bold',
-                    icon: '⚠️'
-                };
-            } else if ((sys >= 120 && sys < 140) || (dia >= 80 && dia < 90)) {
-                return {
-                    level: 'elevated',
-                    shortLabel: '注意',
-                    title: '血壓在正常偏高範圍',
-                    desc: '飲食盡量清淡少鹽、保持規律散步與充足睡眠，繼續維持好習慣！',
-                    boxClass: 'bg-amber-50 border-amber-400 text-amber-900',
-                    badgeClass: 'bg-amber-100 text-amber-800 font-bold',
-                    icon: '💡'
-                };
-            } else if (sys < 90 || dia < 60) {
-                return {
-                    level: 'low',
-                    shortLabel: '偏低',
-                    title: '血壓稍微偏低',
-                    desc: '起身或下床時請放慢動作，避免頭暈；若感到疲倦或不適請多休息。',
-                    boxClass: 'bg-orange-50 border-orange-400 text-orange-900',
-                    badgeClass: 'bg-orange-100 text-orange-800 font-bold',
-                    icon: '🧡'
-                };
-            } else {
-                return {
-                    level: 'normal',
-                    shortLabel: '正常',
-                    title: '數值非常標準！',
-                    desc: '太棒了，血壓保持得很健康，請繼續保持好心情！',
-                    boxClass: 'bg-emerald-50 border-emerald-400 text-emerald-900',
-                    badgeClass: 'bg-emerald-100 text-emerald-800 font-bold',
-                    icon: '✅'
-                };
-            }
-        }
-
-        // 即時評估輸入的血壓並顯示提示框
-        function evaluateBloodPressureLive() {
-            const sys = parseInt(document.getElementById('input-sys').value);
-            const dia = parseInt(document.getElementById('input-dia').value);
-            const box = document.getElementById('bp-feedback-box');
-
-            if (!sys || !dia || sys < 40 || dia < 30) {
-                box.classList.add('hidden');
-                return;
-            }
-
-            const status = getBPStatus(sys, dia);
-            box.className = `p-4 rounded-2xl border-2 text-lg font-bold transition-all ${status.boxClass}`;
-            document.getElementById('bp-feedback-icon').textContent = status.icon;
-            document.getElementById('bp-feedback-title').textContent = status.title;
-            document.getElementById('bp-feedback-desc').textContent = status.desc;
-            box.classList.remove('hidden');
-        }
-
-        // 儲存血壓心跳
-        function saveBloodPressure() {
-            const sys = parseInt(document.getElementById('input-sys').value);
-            const dia = parseInt(document.getElementById('input-dia').value);
-            const pulse = parseInt(document.getElementById('input-pulse').value);
-
-            if (!sys || !dia || !pulse) {
-                showToast('請完整填寫收縮壓、舒張壓和心跳喔！', 'warning');
-                return;
-            }
-            if (sys < 40 || sys > 280 || dia < 30 || dia > 200 || pulse < 30 || pulse > 220) {
-                showToast('輸入的數字好像不太對，請再檢查一下喔！', 'warning');
-                return;
-            }
-
-            const activeUser = getActiveUser();
-            const record = getDayRecord(currentSelectedDate, activeUser);
-            record[currentPeriod] = { sys, dia, pulse };
-            saveAppState();
-            renderDailyView();
-
-            const periodNameMap = { morning: '早上', noon: '中午', evening: '晚上' };
-            showToast(`✅ 已儲存${activeUser.name}${periodNameMap[currentPeriod]}的血壓與心跳！`);
-        }
-
-        // ==================== 喝水紀錄功能 ====================
-        function renderWaterSection(record, user = getActiveUser()) {
-            const goal = user.waterGoal || 2000;
-            const currentWater = record.water || 0;
-            const percent = Math.min(100, Math.round((currentWater / goal) * 100));
-
-            document.getElementById('water-goal-display').textContent = goal;
-            document.getElementById('water-target-display').textContent = goal;
-            document.getElementById('water-current-display').textContent = currentWater;
-            document.getElementById('water-percent-text').textContent = `${percent}%`;
-            document.getElementById('water-progress-bar').style.width = `${percent}%`;
-
-            const encEl = document.getElementById('water-encouragement');
-            if (currentWater >= goal) {
-                encEl.textContent = `🎉 太棒了！${user.name}今天已經達成喝水目標囉！`;
-                encEl.className = 'text-base font-black text-emerald-700 mt-3';
-            } else if (currentWater >= goal * 0.5) {
-                encEl.textContent = `👍 已經喝超過一半了，再喝 ${goal - currentWater} ml 就達標囉！`;
-                encEl.className = 'text-base font-bold text-sky-900 mt-3';
-            } else {
-                encEl.textContent = '💡 記得少量多次喝水，不要等口渴才喝喔！';
-                encEl.className = 'text-base font-bold text-sky-900 mt-3';
-            }
-
-            const undoBtn = document.getElementById('undo-water-btn');
-            undoBtn.disabled = !(record.waterLogs && record.waterLogs.length > 0);
-        }
-
-        function addWater(amount) {
-            const activeUser = getActiveUser();
-            const record = getDayRecord(currentSelectedDate, activeUser);
-            if (!record.waterLogs) record.waterLogs = [];
-            record.water = (record.water || 0) + amount;
-            record.waterLogs.push(amount);
-            
-            saveAppState();
-            renderWaterSection(record, activeUser);
-            showToast(`💧 已幫${activeUser.name}增加 ${amount} ml 喝水紀錄`);
-        }
-
-        function addCustomWater() {
-            const input = document.getElementById('custom-water-input');
-            const val = parseInt(input.value);
-            if (!val || val <= 0 || val > 3000) {
-                showToast('請輸入正確的毫升數（例如 100 或 300）', 'warning');
-                return;
-            }
-            addWater(val);
-            input.value = '';
-        }
-
-        function undoLastWater() {
-            const activeUser = getActiveUser();
-            const record = getDayRecord(currentSelectedDate, activeUser);
-            if (record.waterLogs && record.waterLogs.length > 0) {
-                const lastAmount = record.waterLogs.pop();
-                record.water = Math.max(0, (record.water || 0) - lastAmount);
-                saveAppState();
-                renderWaterSection(record, activeUser);
-                showToast(`↩️ 已取消剛剛加入的 ${lastAmount} ml`);
-            }
-        }
-
-        function toggleGoalModal() {
-            const activeUser = getActiveUser();
-            const modal = document.getElementById('goal-modal');
-            document.getElementById('goal-modal-title').textContent = `設定「${activeUser.name}」的每日喝水目標`;
-            document.getElementById('goal-input').value = activeUser.waterGoal || 2000;
-            modal.classList.toggle('hidden');
-        }
-
-        function saveWaterGoal() {
-            const newGoal = parseInt(document.getElementById('goal-input').value);
-            if (!newGoal || newGoal < 300 || newGoal > 6000) {
-                showToast('請輸入合理的每日喝水目標 (300 ~ 6000 ml)', 'warning');
-                return;
-            }
-            const activeUser = getActiveUser();
-            activeUser.waterGoal = newGoal;
-            saveAppState();
-            toggleGoalModal();
-            renderDailyView();
-            showToast(`✅ ${activeUser.name}的喝水目標已更新為 ${newGoal} ml`);
-        }
-
-        // ==================== 歷史紀錄檢視與管理 ====================
-        function hasAnyRecordData(d) {
-            return d && (d.morning || d.noon || d.evening || (d.water && d.water > 0));
-        }
-
-        function renderHistoryView() {
-            const container = document.getElementById('history-list-container');
-            const countBadge = document.getElementById('history-count-badge');
-            const activeUser = getActiveUser();
-            const userRecords = activeUser.records || {};
-
-            const validDates = Object.keys(userRecords)
-                .filter(date => hasAnyRecordData(userRecords[date]))
-                .sort((a, b) => b.localeCompare(a));
-
-            countBadge.textContent = `共 ${validDates.length} 天`;
-
-            if (validDates.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-12 bg-stone-50 rounded-2xl border border-dashed border-stone-300">
-                        <p class="text-2xl font-bold text-stone-500 mb-2">「${escapeHtml(activeUser.name)}」目前還沒有紀錄喔</p>
-                        <p class="text-base text-stone-400">回到「每日紀錄」開始寫下第一筆健康資料吧！</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = validDates.map(dateStr => {
-                const d = userRecords[dateStr];
-                const weekDay = getChineseWeekday(dateStr);
-
-                const formatSlot = (slotData) => {
-                    if (!slotData) return `<span class="text-stone-400">未紀錄</span>`;
-                    const st = getBPStatus(slotData.sys, slotData.dia);
-                    return `
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="font-black text-gray-900">${slotData.sys}/${slotData.dia}</span>
-                            <span class="text-xs text-gray-500">mmHg</span>
-                            <span class="text-gray-700 text-base">· 心跳 <b>${slotData.pulse}</b></span>
-                            <span class="text-xs px-2 py-0.5 rounded-md ${st.badgeClass}">${st.shortLabel}</span>
-                        </div>
-                    `;
-                };
-
-                return `
-                    <div class="bg-stone-50 border border-stone-200 rounded-2xl p-4 sm:p-5 transition-all hover:border-[#2E6F40]/40">
-                        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-stone-200">
-                            <div class="flex items-center gap-2">
-                                <span class="text-xl font-black text-[#2E6F40]">${dateStr}</span>
-                                <span class="text-base font-bold text-stone-500">(${weekDay})</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button onclick="editDateRecord('${dateStr}')" class="bg-white hover:bg-emerald-50 text-[#2E6F40] border border-emerald-200 font-bold text-sm px-3 py-1.5 rounded-xl">
-                                    ✏️ 修改
-                                </button>
-                                <button onclick="promptDeleteDate('${dateStr}')" class="bg-white hover:bg-red-50 text-red-600 border border-red-200 font-bold text-sm px-3 py-1.5 rounded-xl">
-                                    🗑️ 刪除
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-lg">
-                            <div class="bg-white p-3 rounded-xl border border-stone-100">
-                                <p class="text-sm font-bold text-amber-800 mb-1">☀️ 早上血壓心跳</p>
-                                ${formatSlot(d.morning)}
-                            </div>
-                            <div class="bg-white p-3 rounded-xl border border-stone-100">
-                                <p class="text-sm font-bold text-orange-800 mb-1">🌤️ 中午血壓心跳</p>
-                                ${formatSlot(d.noon)}
-                            </div>
-                            <div class="bg-white p-3 rounded-xl border border-stone-100">
-                                <p class="text-sm font-bold text-indigo-800 mb-1">🌙 晚上血壓心跳</p>
-                                ${formatSlot(d.evening)}
-                            </div>
-                        </div>
-
-                        <div class="mt-3 bg-sky-50/70 px-3.5 py-2.5 rounded-xl border border-sky-100 flex items-center justify-between">
-                            <span class="text-base font-bold text-sky-900">💧 當日總喝水量</span>
-                            <span class="text-xl font-black text-[#0284C7]">${d.water || 0} <span class="text-sm font-normal">ml</span></span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function getChineseWeekday(dateStr) {
-            const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-            const [y, m, d] = dateStr.split('-').map(Number);
-            const dateObj = new Date(y, m - 1, d);
-            return days[dateObj.getDay()];
-        }
-
-        function editDateRecord(dateStr) {
-            currentSelectedDate = dateStr;
-            document.getElementById('record-date-picker').value = dateStr;
-            updateDateBanner();
-            switchTab('daily');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function promptDeleteDate(dateStr) {
-            const activeUser = getActiveUser();
-            document.getElementById('delete-modal-title').textContent = '確定要刪除這天紀錄嗎？';
-            document.getElementById('delete-modal-desc').textContent = `確定要刪除「${activeUser.name}」在 ${dateStr} 的所有血壓與喝水紀錄嗎？刪除後無法恢復。`;
-            document.getElementById('delete-modal').classList.remove('hidden');
-            document.getElementById('confirm-delete-btn').onclick = () => confirmDeleteDate(dateStr);
-        }
-
-        function closeDeleteModal() {
-            document.getElementById('delete-modal').classList.add('hidden');
-        }
-
-        function confirmDeleteDate(dateStr) {
-            const activeUser = getActiveUser();
-            if (dateStr && activeUser.records[dateStr]) {
-                delete activeUser.records[dateStr];
-                saveAppState();
-                renderHistoryView();
-                showToast(`🗑️ 已刪除 ${dateStr} 的紀錄`);
-            }
-            closeDeleteModal();
-        }
-
-        // ==================== 匯出 Excel (.xlsx) 功能 ====================
-        function buildUserWorksheet(user) {
-            const userRecords = user.records || {};
-            const validDates = Object.keys(userRecords)
-                .filter(date => hasAnyRecordData(userRecords[date]))
-                .sort((a, b) => b.localeCompare(a));
-
-            const rows = validDates.map(dateStr => {
-                const d = userRecords[dateStr];
-                const m = d.morning || {};
-                const n = d.noon || {};
-                const e = d.evening || {};
-
-                let notes = [];
-                if (m.sys && m.dia) {
-                    const st = getBPStatus(m.sys, m.dia);
-                    if (st.level !== 'normal') notes.push(`早上血壓${st.shortLabel}`);
-                }
-                if (n.sys && n.dia) {
-                    const st = getBPStatus(n.sys, n.dia);
-                    if (st.level !== 'normal') notes.push(`中午血壓${st.shortLabel}`);
-                }
-                if (e.sys && e.dia) {
-                    const st = getBPStatus(e.sys, e.dia);
-                    if (st.level !== 'normal') notes.push(`晚上血壓${st.shortLabel}`);
-                }
-                const noteText = notes.length > 0 ? notes.join('、') : '數值正常';
-
-                return {
-                    '使用者': user.name,
-                    '日期': dateStr,
-                    '早上收縮壓(mmHg)': m.sys || '',
-                    '早上舒張壓(mmHg)': m.dia || '',
-                    '早上心跳(次/分)': m.pulse || '',
-                    '中午收縮壓(mmHg)': n.sys || '',
-                    '中午舒張壓(mmHg)': n.dia || '',
-                    '中午心跳(次/分)': n.pulse || '',
-                    '晚上收縮壓(mmHg)': e.sys || '',
-                    '晚上舒張壓(mmHg)': e.dia || '',
-                    '晚上心跳(次/分)': e.pulse || '',
-                    '當日總喝水量(ml)': d.water || 0,
-                    '血壓狀態備註': noteText
-                };
-            });
-
-            // 若該使用者尚無資料，仍建立含標頭的空表避免匯出失敗
-            const worksheet = rows.length > 0
-                ? XLSX.utils.json_to_sheet(rows)
-                : XLSX.utils.json_to_sheet([{
-                    '使用者': user.name,
-                    '日期': '尚無紀錄',
-                    '早上收縮壓(mmHg)': '',
-                    '早上舒張壓(mmHg)': '',
-                    '早上心跳(次/分)': '',
-                    '中午收縮壓(mmHg)': '',
-                    '中午舒張壓(mmHg)': '',
-                    '中午心跳(次/分)': '',
-                    '晚上收縮壓(mmHg)': '',
-                    '晚上舒張壓(mmHg)': '',
-                    '晚上心跳(次/分)': '',
-                    '當日總喝水量(ml)': '',
-                    '血壓狀態備註': ''
-                }]);
-
-            worksheet['!cols'] = [
-                { wch: 12 }, // 使用者
-                { wch: 14 }, // 日期
-                { wch: 17 }, // 早上收縮壓
-                { wch: 17 }, // 早上舒張壓
-                { wch: 15 }, // 早上心跳
-                { wch: 17 }, // 中午收縮壓
-                { wch: 17 }, // 中午舒張壓
-                { wch: 15 }, // 中午心跳
-                { wch: 17 }, // 晚上收縮壓
-                { wch: 17 }, // 晚上舒張壓
-                { wch: 15 }, // 晚上心跳
-                { wch: 17 }, // 當日總喝水量
-                { wch: 26 }  // 血壓狀態備註
-            ];
-
-            return { worksheet, hasData: rows.length > 0 };
-        }
-
-        function exportToExcel(exportAllUsers = false) {
-            if (typeof XLSX === 'undefined') {
-                showToast('⚠️ Excel 元件載入中，請確認網路連線後再試一次', 'warning');
-                return;
-            }
-
-            const workbook = XLSX.utils.book_new();
-            const todayStr = getTodayDateString();
-
-            if (exportAllUsers && appState.users.length > 1) {
-                let anyData = false;
-                appState.users.forEach((user, idx) => {
-                    const { worksheet, hasData } = buildUserWorksheet(user);
-                    if (hasData) anyData = true;
-                    // Excel 工作表名稱不可超過 31 字元且不能重複
-                    const safeSheetName = `${user.name.slice(0, 20)}_健康紀錄`;
-                    XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName);
-                });
-
-                if (!anyData) {
-                    showToast('目前兩位使用者都還沒有紀錄可以匯出喔！', 'warning');
-                    return;
-                }
-
-                const fileName = `家人健康紀錄總表_${todayStr}.xlsx`;
-                XLSX.writeFile(workbook, fileName);
-                showToast(`📥 已成功下載「${fileName}」！`);
-            } else {
-                const activeUser = getActiveUser();
-                const { worksheet, hasData } = buildUserWorksheet(activeUser);
-                if (!hasData) {
-                    showToast(`「${activeUser.name}」目前還沒有紀錄可以匯出喔！`, 'warning');
-                    return;
-                }
-
-                XLSX.utils.book_append_sheet(workbook, worksheet, `${activeUser.name.slice(0, 20)}_健康紀錄`);
-                const fileName = `${activeUser.name}_健康紀錄_${todayStr}.xlsx`;
-                XLSX.writeFile(workbook, fileName);
-                showToast(`📥 已成功下載「${fileName}」！`);
-            }
-        }
-
-        // ==================== JSON 備份與還原 ====================
-        function exportJSONBackup() {
-            const backupPayload = {
-                version: 2,
-                exportedAt: new Date().toISOString(),
-                appState: appState
-            };
-            const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `家人健康紀錄備份_${getTodayDateString()}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            showToast('✅ 已匯出完整備份檔');
-        }
-
-        function importJSONBackup(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const parsed = JSON.parse(e.target.result);
-                    // 支援 v2 多人備份與 v1 單人備份
-                    if (parsed && parsed.appState && Array.isArray(parsed.appState.users)) {
-                        appState = parsed.appState;
-                        saveAppState();
-                        renderAllViews();
-                        showToast('✅ 完整備份資料已成功還原！');
-                    } else if (parsed && parsed.records && typeof parsed.records === 'object') {
-                        appState.users[0].records = { ...appState.users[0].records, ...parsed.records };
-                        if (parsed.waterGoal) appState.users[0].waterGoal = parsed.waterGoal;
-                        saveAppState();
-                        renderAllViews();
-                        showToast('✅ 爸爸的備份資料已成功還原！');
-                    } else {
-                        showToast('⚠️ 檔案格式不正確，無法還原', 'warning');
-                    }
-                } catch (err) {
-                    showToast('⚠️ 讀取備份檔失敗，請確認檔案是否損壞', 'warning');
-                }
-                event.target.value = '';
-            };
-            reader.readAsText(file);
-        }
-
-        // ==================== 工具與吐司訊息 ====================
-        function escapeHtml(str) {
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast-notification');
-            const content = document.getElementById('toast-content');
-            const msgEl = document.getElementById('toast-message');
-            const iconEl = document.getElementById('toast-icon');
-
-            msgEl.textContent = message;
-            if (type === 'warning' || type === 'error') {
-                content.className = 'bg-amber-900 text-white px-6 py-4 rounded-2xl shadow-xl font-bold text-xl text-center flex items-center justify-center gap-3';
-                iconEl.textContent = '⚠️';
-            } else {
-                content.className = 'bg-[#1f4d2c] text-white px-6 py-4 rounded-2xl shadow-xl font-bold text-xl text-center flex items-center justify-center gap-3';
-                iconEl.textContent = '✨';
-            }
-
-            toast.classList.remove('opacity-0', 'translate-y-4');
-            toast.classList.add('opacity-100', 'translate-y-0');
-
-            if (toastTimer) clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => {
-                toast.classList.remove('opacity-100', 'translate-y-0');
-                toast.classList.add('opacity-0', 'translate-y-4');
-            }, 3000);
-        }
-    </script>
+        saveStateLocal();
+        renderAll();
+      };
+      bar.appendChild(editBtn);
+    }
+
+    const activeUser = getActiveUser();
+    document.getElementById('bpUserName').textContent = activeUser.name;
+    document.getElementById('waterUserName').textContent = activeUser.name;
+    document.getElementById('exportBothBtn').classList.toggle('hidden', state.users.length < 2);
+  }
+
+  function evaluateBp(sys, dia) {
+    const box = document.getElementById('bpEvalBox');
+    const s = Number(sys);
+    const d = Number(dia);
+    if (!s || !d) {
+      box.className = 'status-box status-ok';
+      box.textContent = '請輸入收縮壓與舒張壓數值以查看即時提示。';
+      return;
+    }
+    if (s >= 180 || d >= 120) {
+      box.className = 'status-box status-danger';
+      box.textContent = '⚠️ 數值偏高（≥ 180/120 mmHg）：請先安靜坐著休息 5 分鐘後再量一次，若持續偏高或有不適請儘速就醫。';
+    } else if (s >= 140 || d >= 90) {
+      box.className = 'status-box status-warn';
+      box.textContent = '🔸 血壓略高於一般目標：建議先休息 5 分鐘再複測一次，並留意近期作息與用藥紀錄。';
+    } else {
+      box.className = 'status-box status-ok';
+      box.textContent = '✅ 血壓數值在一般常見範圍內，請繼續保持規律測量！';
+    }
+  }
+
+  function renderBpTab() {
+    document.querySelectorAll('.period-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.period === currentPeriod);
+      btn.onclick = () => {
+        currentPeriod = btn.dataset.period;
+        renderBpTab();
+      };
+    });
+
+    const user = getActiveUser();
+    const day = ensureDayRecord(user.id, currentDate);
+    const slot = day[currentPeriod] || { sys: '', dia: '', hr: '' };
+
+    const sysEl = document.getElementById('sysInput');
+    const diaEl = document.getElementById('diaInput');
+    const hrEl = document.getElementById('hrInput');
+
+    sysEl.value = slot.sys ?? '';
+    diaEl.value = slot.dia ?? '';
+    hrEl.value = slot.hr ?? '';
+
+    evaluateBp(sysEl.value, diaEl.value);
+    sysEl.oninput = diaEl.oninput = () => evaluateBp(sysEl.value, diaEl.value);
+
+    const labels = [
+      ['morning', '☀️ 早上'],
+      ['afternoon', '🌤️ 中午'],
+      ['evening', '🌙 晚上']
+    ];
+    const summaryContainer = document.getElementById('todayThreePeriods');
+    summaryContainer.innerHTML = labels.map(([key, label]) => {
+      const p = day[key] || {};
+      const bpText = (p.sys && p.dia) ? `${p.sys} / ${p.dia}` : '未紀錄';
+      const hrText = p.hr ? `心跳 ${p.hr}` : '—';
+      return `<div class="summary-item"><strong>${label}</strong><br/>${bpText}<br/><small>${hrText}</small></div>`;
+    }).join('');
+  }
+
+  document.getElementById('saveBpBtn').onclick = () => {
+    const user = getActiveUser();
+    const day = ensureDayRecord(user.id, currentDate);
+    day[currentPeriod] = {
+      sys: document.getElementById('sysInput').value.trim(),
+      dia: document.getElementById('diaInput').value.trim(),
+      hr: document.getElementById('hrInput').value.trim()
+    };
+    saveStateLocal();
+    renderBpTab();
+    renderHistoryTab();
+    syncToGoogleSheets(user.id, currentDate, '已儲存血壓心跳並同步至 Google 試算表');
+  };
+
+  function renderWaterTab() {
+    const user = getActiveUser();
+    const day = ensureDayRecord(user.id, currentDate);
+    const goal = day.waterGoal || state.waterGoal || 2000;
+    const cur = Number(day.water || 0);
+    const pct = Math.min(100, Math.round((cur / goal) * 100));
+
+    document.getElementById('waterCurrentText').textContent = cur;
+    document.getElementById('waterGoalText').textContent = goal;
+    document.getElementById('waterGoalInput').value = goal;
+    document.getElementById('waterProgressBar').style.width = `${pct}%`;
+  }
+
+  function addWater(ml) {
+    const user = getActiveUser();
+    const day = ensureDayRecord(user.id, currentDate);
+    day.water = Number(day.water || 0) + ml;
+    day.waterHistory = Array.isArray(day.waterHistory) ? day.waterHistory : [];
+    day.waterHistory.push(ml);
+    saveStateLocal();
+    renderWaterTab();
+    renderHistoryTab();
+    syncToGoogleSheets(user.id, currentDate, `已新增 ${ml} ml 喝水並同步至 Google 試算表`);
+  }
+
+  function undoWater() {
+    const user = getActiveUser();
+    const day = ensureDayRecord(user.id, currentDate);
+    if (!Array.isArray(day.waterHistory) || day.waterHistory.length === 0) return;
+    const last = day.waterHistory.pop();
+    day.water = Math.max(0, Number(day.water || 0) - Number(last || 0));
+    saveStateLocal();
+    renderWaterTab();
+    renderHistoryTab();
+    syncToGoogleSheets(user.id, currentDate, '已復原上一筆喝水並同步至 Google 試算表');
+  }
+
+  function updateWaterGoal() {
+    const val = Math.max(500, Number(document.getElementById('waterGoalInput').value) || 2000);
+    state.waterGoal = val;
+    const user = getActiveUser();
+    const day = ensureDayRecord(user.id, currentDate);
+    day.waterGoal = val;
+    saveStateLocal();
+    renderWaterTab();
+    syncToGoogleSheets(user.id, currentDate, '已更新每日喝水目標並同步至 Google 試算表');
+  }
+
+  function formatSlotCell(p) {
+    if (!p || (!p.sys && !p.dia && !p.hr)) return '—';
+    const bp = (p.sys || p.dia) ? `${p.sys || '?'} / ${p.dia || '?'}` : '—';
+    return p.hr ? `${bp} (${p.hr})` : bp;
+  }
+
+  function renderHistoryTab() {
+    const user = getActiveUser();
+    const userRecs = state.records[user.id] || {};
+    const dates = Object.keys(userRecs).sort().reverse();
+    const tbody = document.getElementById('historyTableBody');
+
+    if (!dates.length) {
+      tbody.innerHTML = '<tr><td colspan="5">目前尚無紀錄</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = dates.map(d => {
+      const r = userRecs[d];
+      return `<tr>
+        <td>${d}</td>
+        <td>${formatSlotCell(r.morning)}</td>
+        <td>${formatSlotCell(r.afternoon)}</td>
+        <td>${formatSlotCell(r.evening)}</td>
+        <td>${Number(r.water || 0)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function buildUserRows(user) {
+    const recs = state.records[user.id] || {};
+    return Object.keys(recs).sort().map(d => {
+      const r = recs[d];
+      const m = r.morning || {};
+      const a = r.afternoon || {};
+      const n = r.evening || {};
+      return {
+        '日期': d,
+        '姓名': user.name,
+        '早上收縮壓': m.sys || '',
+        '早上舒張壓': m.dia || '',
+        '早上心跳': m.hr || '',
+        '中午收縮壓': a.sys || '',
+        '中午舒張壓': a.dia || '',
+        '中午心跳': a.hr || '',
+        '晚上收縮壓': n.sys || '',
+        '晚上舒張壓': n.dia || '',
+        '晚上心跳': n.hr || '',
+        '喝水量(ml)': Number(r.water || 0),
+        '每日目標(ml)': Number(r.waterGoal || state.waterGoal || 2000)
+      };
+    });
+  }
+
+  function exportSingleExcel() {
+    const user = getActiveUser();
+    const rows = buildUserRows(user);
+    if (!rows.length) {
+      alert('目前沒有可匯出的資料');
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, user.name.slice(0, 30));
+    XLSX.writeFile(wb, `${user.name}_健康紀錄_${getTodayStr()}.xlsx`);
+  }
+
+  function exportAllUsersExcel() {
+    const wb = XLSX.utils.book_new();
+    let hasAny = false;
+    state.users.forEach(u => {
+      const rows = buildUserRows(u);
+      if (rows.length) {
+        hasAny = true;
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, u.name.slice(0, 30));
+      }
+    });
+    if (!hasAny) {
+      alert('目前沒有可匯出的資料');
+      return;
+    }
+    XLSX.writeFile(wb, `家人健康紀錄合併_${getTodayStr()}.xlsx`);
+  }
+
+  function updateSyncStatusText(msg) {
+    document.getElementById('globalSyncStatus').textContent = msg;
+    document.getElementById('syncDetailLog').textContent = msg;
+  }
+
+  function saveWebhookUrl() {
+    webhookUrl = document.getElementById('webhookUrlInput').value.trim();
+    localStorage.setItem(WEBHOOK_KEY, webhookUrl);
+    if (!webhookUrl) {
+      updateSyncStatusText('雲端狀態：已清除 Google 試算表網址');
+      return;
+    }
+    updateSyncStatusText('雲端狀態：已儲存試算表同步網址，儲存紀錄時將自動同步');
+  }
+
+  async function syncToGoogleSheets(userId, dateStr, successMsg) {
+    if (!webhookUrl) return;
+    const user = state.users.find(u => u.id === userId) || state.users[0];
+    const day = ensureDayRecord(user.id, dateStr);
+    const payload = {
+      userName: user.name,
+      date: dateStr,
+      waterGoal: day.waterGoal || state.waterGoal || 2000,
+      syncedAt: new Date().toLocaleString('zh-TW'),
+      record: day
+    };
+
+    updateSyncStatusText('雲端狀態：正在同步至 Google 試算表...');
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const timeStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      updateSyncStatusText(`雲端狀態：${successMsg}（${timeStr}）`);
+    } catch (err) {
+      updateSyncStatusText(`雲端狀態：同步失敗（${err.message}），資料仍已安全存於本機`);
+    }
+  }
+
+  function testSyncNow() {
+    if (!webhookUrl) {
+      alert('請先輸入並儲存 Google Apps Script 網址');
+      return;
+    }
+    const user = getActiveUser();
+    syncToGoogleSheets(user.id, currentDate, `已手動同步 ${user.name}（${currentDate}）資料`);
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.dataset.tab;
+      ['bp', 'water', 'history'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== target);
+      });
+    };
+  });
+
+  const dateInput = document.getElementById('recordDate');
+  dateInput.value = currentDate;
+  dateInput.onchange = () => {
+    currentDate = dateInput.value || getTodayStr();
+    renderAll();
+  };
+
+  document.getElementById('webhookUrlInput').value = webhookUrl;
+  if (webhookUrl) {
+    updateSyncStatusText('雲端狀態：已連線設定，儲存紀錄時將自動同步至 Google 試算表');
+  }
+
+  function renderAll() {
+    renderUsers();
+    renderBpTab();
+    renderWaterTab();
+    renderHistoryTab();
+  }
+
+  renderAll();
+</script>
 </body>
 </html>
